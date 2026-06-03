@@ -283,7 +283,7 @@ def config_set(key, value):
     keys = key.split(".")
     target = cfg
     for k in keys[:-1]:
-        if k not in target:
+        if k not in target or not isinstance(target[k], dict):
             target[k] = {}
         target = target[k]
 
