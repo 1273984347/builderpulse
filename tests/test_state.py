@@ -101,15 +101,22 @@ class TestSchema:
 
 class TestProcessedItems:
     def test_mark_and_check(self, tmp_state):
-        tmp_state.mark_processed(
+        inserted = tmp_state.mark_processed(
             idem_key="tweet:123",
             source_type="tweet",
             source_id="123",
             url="https://x.com/user/status/123",
             status="done",
         )
+        assert inserted is True  # P1 fix: returns True on first insert
         assert tmp_state.is_processed("tweet:123")
         assert not tmp_state.is_processed("tweet:456")
+
+    def test_mark_processed_returns_false_on_duplicate(self, tmp_state):
+        """P1 fix: mark_processed returns False when item already exists (no TOCTOU)."""
+        tmp_state.mark_processed("k:v", "t", "id", "url", "done")
+        inserted = tmp_state.mark_processed("k:v", "t", "id", "url", "done")
+        assert inserted is False
 
     def test_get_item(self, tmp_state):
         tmp_state.mark_processed(
@@ -248,6 +255,13 @@ class TestFeedCursors:
         tmp_state.update_cursor("twitter", "karpathy", "200")
         cursor = tmp_state.get_cursor("twitter", "karpathy")
         assert cursor.last_seen_id == "200"
+
+    def test_cursor_no_regression(self, tmp_state):
+        """P1 fix: cursor must not regress when a slower worker finishes."""
+        tmp_state.update_cursor("twitter", "karpathy", "200")
+        tmp_state.update_cursor("twitter", "karpathy", "100")  # should be no-op
+        cursor = tmp_state.get_cursor("twitter", "karpathy")
+        assert cursor.last_seen_id == "200"  # NOT "100"
 
 
 # ── Delivery log tests ────────────────────────────────────────────────

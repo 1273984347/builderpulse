@@ -295,28 +295,39 @@ class State:
         status: str,
         output_path: Optional[str] = None,
         error: Optional[str] = None,
-    ) -> None:
-        """Insert or update a processed item."""
+    ) -> bool:
+        """Insert or update a processed item. Returns True if actually inserted (not duplicate)."""
         if status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {status}. Must be one of {VALID_STATUSES}")
 
         now = _utcnow_str()
         with self._lock():
-            self._conn.execute(
+            # P1 fix: Use INSERT OR IGNORE + separate UPDATE to avoid TOCTOU.
+            # INSERT OR IGNORE returns silently if key exists (no update).
+            # Callers check the return value to know if this was a new item.
+            cur = self._conn.execute(
                 """
-                INSERT INTO processed_items
+                INSERT OR IGNORE INTO processed_items
                     (idem_key, source_type, source_id, url, status,
                      output_path, error, attempts, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
-                ON CONFLICT(idem_key) DO UPDATE SET
-                    status = excluded.status,
-                    output_path = excluded.output_path,
-                    error = excluded.error,
-                    updated_at = excluded.updated_at
                 """,
                 (idem_key, source_type, source_id, url, status,
                  output_path, error, now, now),
             )
+            inserted = cur.rowcount > 0
+            if not inserted:
+                # Already exists — update status/output/error
+                self._conn.execute(
+                    """
+                    UPDATE processed_items
+                    SET status = ?, output_path = COALESCE(?, output_path),
+                        error = ?, updated_at = ?
+                    WHERE idem_key = ?
+                    """,
+                    (status, output_path, error, now, idem_key),
+                )
+            return inserted
 
     # ── State machine ─────────────────────────────────────────────────
 
@@ -384,15 +395,22 @@ class State:
         return [Item(**dict(r)) for r in rows]
 
     def recover(self) -> int:
-        """Reset stale items back to pending. Returns count of recovered items."""
-        stale = self.get_recoverable()
+        """Reset stale items back to pending. Returns count of recovered items.
+
+        P1 fix: Wrapped in _lock() + single transaction to prevent partial recovery
+        on crash during the SELECT-then-N-UPDATEs sequence.
+        """
         now = _utcnow_str()
-        for item in stale:
-            self._conn.execute(
-                "UPDATE processed_items SET status = 'pending', updated_at = ? WHERE idem_key = ?",
-                (now, item.idem_key),
-            )
-        return len(stale)
+        with self._lock():
+            stale = self.get_recoverable()
+            if not stale:
+                return 0
+            for item in stale:
+                self._conn.execute(
+                    "UPDATE processed_items SET status = 'pending', updated_at = ? WHERE idem_key = ?",
+                    (now, item.idem_key),
+                )
+            return len(stale)
 
     def get_retryable(self) -> list[Item]:
         """Find failed items whose backoff period has elapsed."""
@@ -427,6 +445,12 @@ class State:
         last_seen_id: str,
         last_seen_at: Optional[datetime] = None,
     ) -> None:
+        """Update feed cursor. P1 fix: only advances, never regresses.
+
+        If another worker already updated to a higher ID, this call is a no-op.
+        Prevents the race where worker A(id=100) finishes after worker B(id=200)
+        and regresses the cursor back to 100.
+        """
         now = (last_seen_at or datetime.now(timezone.utc)).isoformat()
         with self._lock():
             self._conn.execute(
@@ -436,6 +460,8 @@ class State:
                 ON CONFLICT(source_type, account) DO UPDATE SET
                     last_seen_id = excluded.last_seen_id,
                     last_seen_at = excluded.last_seen_at
+                WHERE feed_cursors.last_seen_id IS NULL
+                   OR feed_cursors.last_seen_id < excluded.last_seen_id
                 """,
                 (source_type, account, last_seen_id, now),
             )
