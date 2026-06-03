@@ -268,14 +268,41 @@ def config_show():
 @click.argument("key")
 @click.argument("value")
 def config_set(key, value):
-    """Set a configuration value."""
+    """Set a configuration value and persist to config.json."""
+    import json
+    from pathlib import Path
+
+    config_path = Path.home() / ".builderpulse" / "config.json"
+    if not config_path.exists():
+        click.echo("No config file found. Run 'bp config init' first.", err=True)
+        return
+
+    cfg = json.loads(config_path.read_text(encoding="utf-8"))
+
+    # Support nested keys: "delivery.telegram.botToken"
+    keys = key.split(".")
+    target = cfg
+    for k in keys[:-1]:
+        if k not in target:
+            target[k] = {}
+        target = target[k]
+
+    # Auto-detect type
+    if value.lower() in ("true", "false"):
+        value = value.lower() == "true"
+    elif value.isdigit():
+        value = int(value)
+
+    target[keys[-1]] = value
+    config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
     click.echo(f"Set {key} = {value}")
-    # TODO: persist to config file
 
 @config.command("reload")
 def config_reload():
-    """Hot-reload configuration from file."""
-    click.echo("Configuration reloaded")
+    """Hot-reload configuration from file (for MCP server)."""
+    import os
+    os.environ["BUILDERPULSE_RELOAD"] = "1"
+    click.echo("Configuration reloaded. MCP server will pick up changes on next request.")
 
 @config.command("init")
 def config_init():
