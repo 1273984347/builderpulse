@@ -16,3 +16,8 @@ build/
 Thumbs.db
 output/
 tmp/
+
+# Agent configs (user-specific, not for open source)
+.claude/
+.cursor/
+mcp-config.json
