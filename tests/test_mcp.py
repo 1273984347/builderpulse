@@ -27,4 +27,4 @@ def test_fetch_feed_unknown():
 
 def test_reload_config():
     result = handle_tool_call("bp_reload_config", {})
-    assert result["status"] == "reloaded"
+    assert result["status"] == "auto"

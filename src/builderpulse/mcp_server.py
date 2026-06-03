@@ -223,10 +223,6 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
     if not handler:
         return {"error": f"Unknown tool: {tool_name}"}
 
-    # Check for config reload flag before handling
-    if _check_reload_flag():
-        logger.info("Config reload detected, picking up changes")
-
     try:
         return handler(**arguments)
     except Exception as e:
@@ -389,22 +385,5 @@ def _handle_config(action: str, key: str = None, value: str = None) -> dict:
     else:
         return {"error": "Invalid config action"}
 
-def _check_reload_flag() -> bool:
-    """Check if config reload was requested via flag file."""
-    from pathlib import Path
-    flag = Path.home() / ".builderpulse" / ".reload"
-    if flag.exists():
-        try:
-            flag.unlink()
-        except OSError:
-            pass
-        return True
-    return False
-
 def _handle_reload_config() -> dict:
-    from pathlib import Path
-    flag = Path.home() / ".builderpulse" / ".reload"
-    flag.parent.mkdir(parents=True, exist_ok=True)
-    import time
-    flag.write_text(str(time.time()), encoding="utf-8")
-    return {"status": "reloaded", "message": "Configuration reloaded from disk"}
+    return {"status": "auto", "message": "Config is auto-reloaded on each request. No manual reload needed."}
