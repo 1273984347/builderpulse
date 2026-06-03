@@ -114,7 +114,3 @@ builderpulse-mcp          # 直接启动 MCP server
 bp serve                  # 同上，通过 CLI
 python -m builderpulse serve  # 同上，通过 Python 模块
 ```
-
-## 许可证
-
-MIT

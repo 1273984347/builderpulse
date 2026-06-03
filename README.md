@@ -131,7 +131,3 @@ python -m builderpulse serve  # Same, via Python module
 | `bp_list_sources` | List configured sources |
 | `bp_config` | View/modify config |
 | `bp_reload_config` | Hot-reload config |
-
-## License
-
-MIT
