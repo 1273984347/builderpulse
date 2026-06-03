@@ -181,7 +181,6 @@ def fetch(source, limit, days, user):
         from builderpulse.sources.blog import BlogSource
         urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
         items = BlogSource(urls=urls).fetch(days=days, limit=limit)
-        items = BlogSource().fetch(days=days, limit=limit)
     elif source == "bilibili":
         if not user:
             click.echo("Error: --user <mid> required for bilibili", err=True)
