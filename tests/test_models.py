@@ -32,6 +32,19 @@ def test_source_ref_douyin():
     assert ref.source_type == "douyin"
 
 
+def test_source_ref_twitter():
+    url = "https://x.com/elonmusk/status/1234567890123456789"
+    ref = SourceRef.from_url(url)
+    assert ref.source_type == "twitter"
+    assert ref.native_id == "1234567890123456789"
+
+
+def test_source_ref_twitter_no_status():
+    import pytest
+    with pytest.raises(ValueError, match="Cannot extract tweet ID"):
+        SourceRef.from_url("https://x.com/elonmusk")
+
+
 def test_source_ref_local_file():
     ref = SourceRef.from_url("/path/to/video.mp4")
     assert ref.source_type == "local"

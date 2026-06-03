@@ -38,6 +38,15 @@ class BilibiliDownloader(Downloader):
     def can_handle(self, source: SourceRef) -> bool:
         return source.source_type == "bilibili"
 
+    def close(self):
+        self._client.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     @property
     def name(self) -> str:
         return "bilibili"

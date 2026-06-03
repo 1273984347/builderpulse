@@ -263,6 +263,13 @@ class TestFeedCursors:
         cursor = tmp_state.get_cursor("twitter", "karpathy")
         assert cursor.last_seen_id == "200"  # NOT "100"
 
+    def test_cursor_non_numeric_id(self, tmp_state):
+        """Non-numeric IDs (RSS GUIDs, BV numbers) use string comparison."""
+        tmp_state.update_cursor("podcast", "feed1", "guid-abc-123")
+        tmp_state.update_cursor("podcast", "feed1", "guid-abc-456")
+        cursor = tmp_state.get_cursor("podcast", "feed1")
+        assert cursor.last_seen_id == "guid-abc-456"
+
 
 # ── Delivery log tests ────────────────────────────────────────────────
 
