@@ -9,7 +9,7 @@ from pathlib import Path
 os.environ.pop("BUILDERPULSE_MODE", None)
 
 @click.group()
-@click.version_option(version="0.9.0", prog_name="builderpulse")
+@click.version_option(version="1.0.0", prog_name="builderpulse")
 def cli():
     """BuilderPulse — Track what AI builders are saying."""
     pass

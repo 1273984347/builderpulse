@@ -2,7 +2,7 @@
 
 > Track what AI builders are saying — transcripts, digests, and insights delivered to you.
 
-**v0.9.0-beta** — API and CLI interfaces may change before v1.0.0.
+**v1.0.0**
 
 ## What it does
 

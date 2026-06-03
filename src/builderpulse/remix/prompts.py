@@ -2,7 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 
-_BUILTIN_DIR = Path(__file__).parent.parent.parent.parent / "prompts"
+_BUILTIN_DIR = Path(__file__).parent.parent / "prompts"  # inside the package
 
 def load_prompt(name: str, custom_dir: str | Path | None = None) -> str:
     """Load a prompt template. Custom dir overrides builtin."""
