@@ -300,8 +300,11 @@ def config_set(key, value):
 @config.command("reload")
 def config_reload():
     """Hot-reload configuration from file (for MCP server)."""
-    import os
-    os.environ["BUILDERPULSE_RELOAD"] = "1"
+    from pathlib import Path
+    # Write flag file that MCP server checks on each request
+    flag = Path.home() / ".builderpulse" / ".reload"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text(str(__import__('time').time()), encoding="utf-8")
     click.echo("Configuration reloaded. MCP server will pick up changes on next request.")
 
 @config.command("init")
