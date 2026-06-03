@@ -1,0 +1,11 @@
+{
+  "name": "builderpulse",
+  "description": "Video transcription + AI content aggregation for builders. Supports YouTube/Bilibili/Douyin/podcasts/blogs with LLM summarization and multi-channel delivery.",
+  "category": "productivity",
+  "source": {
+    "repo": "1273984347/builderpulse",
+    "source": "github"
+  },
+  "install": "pip install builderpulse",
+  "tags": ["transcription", "digest", "AI", "content", "whisper", "mcp"]
+}

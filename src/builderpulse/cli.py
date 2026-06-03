@@ -250,6 +250,97 @@ def config_reload():
     """Hot-reload configuration from file."""
     click.echo("Configuration reloaded")
 
+@config.command("init")
+def config_init():
+    """Interactive setup — configure BuilderPulse in 60 seconds."""
+    from builderpulse.core.config import Config
+    from pathlib import Path
+    import json
+
+    config_dir = Path.home() / ".builderpulse"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_file = config_dir / "config.json"
+
+    click.echo()
+    click.echo("=== BuilderPulse Setup ===")
+    click.echo()
+
+    # Language
+    lang = click.prompt("Language", type=click.Choice(["en", "zh", "bilingual"]), default="zh")
+
+    # Transcription engine
+    click.echo()
+    click.echo("Transcription engine:")
+    click.echo("  1. faster-whisper  (recommended, CPU, no PyTorch)")
+    click.echo("  2. whisper         (OpenAI Whisper, needs PyTorch)")
+    click.echo("  3. whisperx        (best quality, needs GPU)")
+    engine_choice = click.prompt("Choose engine", type=click.Choice(["1", "2", "3"]), default="1")
+    engine_map = {"1": "faster-whisper", "2": "whisper", "3": "whisperx"}
+    engine = engine_map[engine_choice]
+
+    # Content sources
+    click.echo()
+    click.echo("Enable content sources? (y/n for each)")
+    enable_podcast = click.prompt("  Podcast RSS?", type=bool, default=True)
+    enable_blog = click.prompt("  Blog scraping?", type=bool, default=True)
+    enable_twitter = click.prompt("  X/Twitter? (requires $100/mo API key)", type=bool, default=False)
+    enable_bilibili = click.prompt("  Bilibili?", type=bool, default=True)
+
+    # Delivery
+    click.echo()
+    click.echo("Delivery channel (where to send digests):")
+    click.echo("  1. stdout  (print to terminal)")
+    click.echo("  2. telegram")
+    click.echo("  3. lark (飞书)")
+    click.echo("  4. dingtalk (钉钉)")
+    click.echo("  5. discord")
+    click.echo("  6. email (SMTP)")
+    delivery_choice = click.prompt("Choose", type=click.Choice(["1","2","3","4","5","6"]), default="1")
+    delivery_map = {"1": "stdout", "2": "telegram", "3": "lark", "4": "dingtalk", "5": "discord", "6": "email"}
+    delivery = delivery_map[delivery_choice]
+
+    # Build config
+    cfg = {
+        "language": lang,
+        "engine": engine,
+        "model": "base",
+        "device": "auto",
+        "sources": {
+            "twitter": {"enabled": enable_twitter, "accounts": []},
+            "podcast": {"enabled": enable_podcast, "feeds": []},
+            "blog": {"enabled": enable_blog, "urls": []},
+            "bilibili": {"enabled": enable_bilibili, "users": []},
+        },
+        "delivery": {
+            "method": delivery,
+            "telegram": {"botToken": "", "chatId": ""},
+            "email": {"provider": "smtp", "smtp": {"host": "", "port": 587, "user": "", "password": ""}, "to": ""},
+            "lark": {"webhook_url": "", "secret": ""},
+            "dingtalk": {"webhook_url": "", "secret": ""},
+            "discord": {"webhook_url": ""},
+            "wecom": {"webhook_url": ""},
+            "wechat": {"type": "pushplus", "token": ""},
+        },
+        "remix": {"model": "claude-sonnet-4-6"},
+        "workspace": str(config_dir / "output"),
+        "cleanup": {"autoTTL": "7d", "maxSize": "5GB"},
+    }
+
+    config_file.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    click.echo()
+    click.echo(f"Config saved to: {config_file}")
+    click.echo()
+    click.echo("Next steps:")
+    if delivery == "telegram":
+        click.echo("  1. Set Telegram bot: bp config set delivery.telegram.botToken <token>")
+        click.echo("  2. Set chat ID:     bp config set delivery.telegram.chatId <chat_id>")
+    click.echo(f"  Run: bp digest --lang {lang} --deliver {delivery}")
+    click.echo()
+    click.echo("For MCP integration (Claude Code / Cursor), add to settings:")
+    click.echo('  {"mcpServers": {"builderpulse": {"command": "bp", "args": ["serve"]}}}')
+    click.echo()
+
 # ── Serve (MCP) ─────────────────────────────────────────────────
 
 @cli.command()

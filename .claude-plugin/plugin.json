@@ -1,0 +1,32 @@
+{
+  "name": "builderpulse",
+  "version": "1.0.0",
+  "description": "Track what AI builders are saying — transcribe videos, aggregate content, generate digests, deliver to Telegram/飞书/Discord.",
+  "author": "builderpulse",
+  "homepage": "https://github.com/1273984347/builderpulse",
+  "repository": "https://github.com/1273984347/builderpulse",
+  "keywords": [
+    "transcription",
+    "whisper",
+    "digest",
+    "RSS",
+    "bilibili",
+    "douyin",
+    "youtube",
+    "podcast",
+    "AI builders",
+    "content aggregation"
+  ],
+  "skills": [
+    {
+      "name": "builderpulse",
+      "path": "skills/builderpulse/SKILL.md"
+    }
+  ],
+  "mcp": {
+    "command": "bp",
+    "args": ["serve"]
+  },
+  "hooks": {},
+  "minimumVersion": "1.0.0"
+}
