@@ -53,6 +53,11 @@ pip install builderpulse[secrets]           # + keyring for secure credential st
 
 ## Agent Integration
 
+BuilderPulse works with any MCP-compatible AI agent.
+
+### Claude Code
+
+Add to `.claude/settings.json`:
 ```json
 {
   "mcpServers": {
@@ -62,6 +67,56 @@ pip install builderpulse[secrets]           # + keyring for secure credential st
     }
   }
 }
+```
+
+Or use the Claude Code skill: `/builderpulse`
+
+### Cursor
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+### Continue (VS Code)
+
+Add to `~/.continue/config.json`:
+```json
+{
+  "mcpServers": [{
+    "name": "builderpulse",
+    "command": "bp",
+    "args": ["serve"]
+  }]
+}
+```
+
+### Windsurf / Cline / Zed
+
+Use `builderpulse-mcp` entry point:
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "builderpulse-mcp"
+    }
+  }
+}
+```
+
+### Dedicated MCP entry point
+
+```bash
+builderpulse-mcp          # Start MCP server directly
+bp serve                  # Same, via CLI
+python -m builderpulse serve  # Same, via Python module
 ```
 
 ## MCP Tools

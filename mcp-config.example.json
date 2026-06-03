@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"],
+      "env": {
+        "BUILDERPULSE_LANGUAGE": "zh"
+      }
+    }
+  }
+}

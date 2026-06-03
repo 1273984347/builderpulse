@@ -257,12 +257,9 @@ def config_reload():
 def serve(port):
     """Start MCP server for AI agent integration."""
     os.environ["BUILDERPULSE_MODE"] = "mcp"
-    click.echo("Starting BuilderPulse MCP server...", err=True)
-    if port:
-        click.echo(f"SSE mode on port {port}", err=True)
-    else:
-        click.echo("stdio mode", err=True)
-    # TODO: actual MCP server startup
+    click.echo("Starting BuilderPulse MCP server (stdio)...", err=True)
+    from builderpulse.mcp_server import run_mcp_server
+    run_mcp_server()
 
 def main():
     cli()

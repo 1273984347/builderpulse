@@ -1,13 +1,114 @@
-"""BuilderPulse MCP Server — tool registration for AI agents."""
+"""BuilderPulse MCP Server — real JSON-RPC over stdio for AI agents.
+
+Implements MCP protocol (tools/list + tools/call) without external SDK dependency.
+Compatible with Claude Code, Cursor, Continue, and any MCP client.
+"""
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import os
+import sys
 from typing import Any
 
 os.environ["BUILDERPULSE_MODE"] = "mcp"
 
 logger = logging.getLogger("builderpulse.mcp")
+
+# ── MCP Protocol ────────────────────────────────────────────────
+
+def _make_response(request_id: Any, result: Any) -> dict:
+    return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+def _make_error(request_id: Any, code: int, message: str) -> dict:
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+
+def run_mcp_server() -> None:
+    """Run MCP server over stdio (JSON-RPC 2.0). Synchronous for Windows compatibility."""
+    import sys
+
+    # Use binary mode for stdin/stdout to handle Content-Length framing
+    stdin = sys.stdin.buffer
+    stdout = sys.stdout.buffer
+
+    def read_message() -> dict | None:
+        """Read a single JSON-RPC message from stdin."""
+        # Read Content-Length header
+        header_line = b""
+        while True:
+            byte = stdin.read(1)
+            if not byte:
+                return None
+            header_line += byte
+            if header_line.endswith(b"\r\n"):
+                break
+
+        header_line = header_line.decode("utf-8").strip()
+        if not header_line.startswith("Content-Length:"):
+            # Try parsing as raw JSON
+            try:
+                return json.loads(header_line)
+            except json.JSONDecodeError:
+                return None
+
+        length = int(header_line.split(":")[1].strip())
+        # Read the empty line after header
+        stdin.readline()
+        # Read the body
+        body = stdin.read(length)
+        return json.loads(body.decode("utf-8"))
+
+    def write_message(msg: dict) -> None:
+        """Write a JSON-RPC message to stdout."""
+        body = json.dumps(msg, ensure_ascii=False).encode("utf-8")
+        header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+        stdout.write(header + body)
+        stdout.flush()
+
+    while True:
+        try:
+            msg = read_message()
+            if msg is None:
+                break
+
+            request_id = msg.get("id")
+            method = msg.get("method", "")
+            params = msg.get("params", {})
+
+            if method == "initialize":
+                response = _make_response(request_id, {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {"listChanged": False}},
+                    "serverInfo": {"name": "builderpulse", "version": "1.0.0"},
+                })
+            elif method == "notifications/initialized":
+                continue
+            elif method == "tools/list":
+                response = _make_response(request_id, {"tools": TOOLS})
+            elif method == "tools/call":
+                tool_name = params.get("name", "")
+                arguments = params.get("arguments", {})
+                result = handle_tool_call(tool_name, arguments)
+                response = _make_response(request_id, {
+                    "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
+                })
+            elif method == "ping":
+                response = _make_response(request_id, {})
+            else:
+                response = _make_error(request_id, -32601, f"Method not found: {method}")
+
+            write_message(response)
+
+        except json.JSONDecodeError as e:
+            logger.error("Invalid JSON: %s", e)
+            continue
+        except Exception as e:
+            logger.error("Server error: %s", e)
+            break
+
+def main():
+    """Entry point for `builderpulse-mcp` command."""
+    asyncio.run(run_mcp_server())
 
 # ── Tool definitions ────────────────────────────────────────────
 

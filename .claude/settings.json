@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"]
+    }
+  }
+}

@@ -38,6 +38,7 @@ dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.1", "respx>=0.21"]
 
 [project.scripts]
 bp = "builderpulse.cli:main"
+builderpulse-mcp = "builderpulse.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

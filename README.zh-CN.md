@@ -49,6 +49,11 @@ pip install builderpulse[llm]               # + LLM SDK（OpenAI/Anthropic/Ollam
 
 ## Agent 集成
 
+BuilderPulse 支持所有兼容 MCP 协议的 AI Agent。
+
+### Claude Code
+
+添加到 `.claude/settings.json`：
 ```json
 {
   "mcpServers": {
@@ -58,6 +63,56 @@ pip install builderpulse[llm]               # + LLM SDK（OpenAI/Anthropic/Ollam
     }
   }
 }
+```
+
+或使用 Claude Code skill：`/builderpulse`
+
+### Cursor
+
+添加到 `.cursor/mcp.json`：
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+### Continue (VS Code)
+
+添加到 `~/.continue/config.json`：
+```json
+{
+  "mcpServers": [{
+    "name": "builderpulse",
+    "command": "bp",
+    "args": ["serve"]
+  }]
+}
+```
+
+### Windsurf / Cline / Zed
+
+使用 `builderpulse-mcp` 入口：
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "builderpulse-mcp"
+    }
+  }
+}
+```
+
+### MCP 入口
+
+```bash
+builderpulse-mcp          # 直接启动 MCP server
+bp serve                  # 同上，通过 CLI
+python -m builderpulse serve  # 同上，通过 Python 模块
 ```
 
 ## 许可证
