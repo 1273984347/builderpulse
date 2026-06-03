@@ -270,6 +270,7 @@ def config_show():
 def config_set(key, value):
     """Set a configuration value and persist to config.json."""
     import json
+    import os
     from pathlib import Path
 
     config_path = Path.home() / ".builderpulse" / "config.json"
@@ -277,10 +278,15 @@ def config_set(key, value):
         click.echo("No config file found. Run 'bp config init' first.", err=True)
         return
 
+    # P1 fix: validate key has no empty segments
+    keys = key.split(".")
+    if any(not k.strip() for k in keys):
+        click.echo(f"Invalid key '{key}': empty segments not allowed", err=True)
+        return
+
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
 
     # Support nested keys: "delivery.telegram.botToken"
-    keys = key.split(".")
     target = cfg
     for k in keys[:-1]:
         if k not in target or not isinstance(target[k], dict):
@@ -290,11 +296,21 @@ def config_set(key, value):
     # Auto-detect type
     if value.lower() in ("true", "false"):
         value = value.lower() == "true"
-    elif value.isdigit():
+    elif value.lstrip("-").isdigit():
         value = int(value)
+    else:
+        try:
+            value = float(value)
+        except ValueError:
+            pass  # keep as string
 
     target[keys[-1]] = value
-    config_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # P1 fix: atomic write (write to tmp then replace)
+    tmp_path = config_path.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(str(tmp_path), str(config_path))
+
     click.echo(f"Set {key} = {value}")
 
 @config.command("reload")
