@@ -71,6 +71,16 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     from builderpulse.sources.podcast import PodcastSource
     from builderpulse.sources.twitter import TwitterSource
     from builderpulse.sources.blog import BlogSource
+    from builderpulse.core.config import Config
+    import json
+    from pathlib import Path
+
+    # Load config to get source URLs
+    config_path = Path.home() / ".builderpulse" / "config.json"
+    if config_path.exists():
+        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    else:
+        cfg = {}
 
     click.echo(f"Fetching content (last {days} days)...")
 
@@ -79,9 +89,11 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
 
     if sources == "all" or "podcast" in source_list:
         try:
-            src = PodcastSource()
-            items.extend(src.fetch(days=days))
-            click.echo(f"  Podcasts: {len(items)} items")
+            feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+            src = PodcastSource(feeds=feeds)
+            podcast_items = src.fetch(days=days)
+            items.extend(podcast_items)
+            click.echo(f"  Podcasts: {len(podcast_items)} items")
         except Exception as e:
             if not skip_failed:
                 raise
@@ -89,7 +101,8 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
 
     if sources == "all" or "twitter" in source_list:
         try:
-            src = TwitterSource()
+            accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+            src = TwitterSource(accounts=accounts)
             tweets = src.fetch()
             items.extend(tweets)
             click.echo(f"  Twitter: {len(tweets)} items")
@@ -100,7 +113,8 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
 
     if sources == "all" or "blog" in source_list:
         try:
-            src = BlogSource()
+            urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+            src = BlogSource(urls=urls)
             blogs = src.fetch(days=days)
             items.extend(blogs)
             click.echo(f"  Blogs: {len(blogs)} items")
@@ -143,16 +157,30 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
 @click.option("--user", default=None, help="User ID (for bilibili)")
 def fetch(source, limit, days, user):
     """Fetch raw content from a source."""
+    import json
+    from pathlib import Path
+
+    # Load config
+    config_path = Path.home() / ".builderpulse" / "config.json"
+    if config_path.exists():
+        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+    else:
+        cfg = {}
+
     click.echo(f"Fetching from {source}...")
 
     if source == "podcast":
         from builderpulse.sources.podcast import PodcastSource
-        items = PodcastSource().fetch(days=days, limit=limit)
+        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+        items = PodcastSource(feeds=feeds).fetch(days=days, limit=limit)
     elif source == "twitter":
         from builderpulse.sources.twitter import TwitterSource
-        items = TwitterSource().fetch(limit=limit)
+        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+        items = TwitterSource(accounts=accounts).fetch(limit=limit)
     elif source == "blog":
         from builderpulse.sources.blog import BlogSource
+        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+        items = BlogSource(urls=urls).fetch(days=days, limit=limit)
         items = BlogSource().fetch(days=days, limit=limit)
     elif source == "bilibili":
         if not user:
