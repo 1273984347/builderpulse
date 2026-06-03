@@ -150,7 +150,11 @@ class State:
         state = State(Path("/custom/path/state.db"))
 
     Thread-safe via WAL mode. Process-safe via advisory file lock.
+    P2 fix: _initialized_paths prevents multiple instances from running
+    recover() on the same DB in the same process.
     """
+
+    _initialized_paths: set[str] = set()  # P2 fix: per-process dedup
 
     def __init__(
         self,
@@ -168,9 +172,15 @@ class State:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute("PRAGMA wal_autocheckpoint=1000")  # P2: explicit checkpoint interval
 
         self._init_schema()
-        self.recover()
+
+        # P2 fix: only run recover() once per DB path per process
+        path_key = str(self._db_path.resolve())
+        if path_key not in State._initialized_paths:
+            State._initialized_paths.add(path_key)
+            self.recover()
 
     # ── Schema ────────────────────────────────────────────────────────
 
@@ -531,6 +541,8 @@ class State:
         output_path: Optional[str] = None,
         error: Optional[str] = None,
     ) -> None:
+        if status not in VALID_STATUSES:
+            raise ValueError(f"Invalid batch item status: {status}")
         now = _utcnow_str()
         with self._lock():
             self._conn.execute(
@@ -615,8 +627,11 @@ class State:
 
     # ── Cleanup ───────────────────────────────────────────────────────
 
-    def cleanup(self, max_age_days: int = 14) -> int:
-        """Delete processed items and delivery logs older than max_age_days."""
+    def cleanup(self, max_age_days: int = 14, vacuum: bool = True) -> int:
+        """Delete processed items and delivery logs older than max_age_days.
+
+        P2 fix: Optionally VACUUM after cleanup to reclaim disk space.
+        """
         cutoff = (_utcnow() - timedelta(days=max_age_days)).isoformat()
         with self._lock():
             cur1 = self._conn.execute(
@@ -626,7 +641,10 @@ class State:
             cur2 = self._conn.execute(
                 "DELETE FROM delivery_log WHERE delivered_at < ?", (cutoff,)
             )
-        return cur1.rowcount + cur2.rowcount
+            removed = cur1.rowcount + cur2.rowcount
+            if vacuum and removed > 0:
+                self._conn.execute("VACUUM")
+        return removed
 
     # ── Context manager ───────────────────────────────────────────────
 
