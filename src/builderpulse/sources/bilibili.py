@@ -48,6 +48,7 @@ class BilibiliSource:
         signed = self._wbi_sign(params)
         url = "https://api.bilibili.com/x/space/wbi/arc/search"
         r = self._client.get(url, params=signed)
+        r.raise_for_status()  # P1 fix: check HTTP status before parsing
         data = r.json()
         if data.get("code") != 0:
             raise RuntimeError(f"Bilibili API error: {data.get('message')}")
@@ -68,11 +69,14 @@ class BilibiliSource:
         return items
 
     def _wbi_sign(self, params: dict) -> dict:
-        nav = self._client.get("https://api.bilibili.com/x/web-interface/nav").json()
-        wbi = nav.get("data", {}).get("wbi_img", {})
-        img_key = wbi.get("img_url", "").split("/")[-1].split(".")[0]
-        sub_key = wbi.get("sub_url", "").split("/")[-1].split(".")[0]
-        mixin_key = "".join((img_key + sub_key)[i] for i in _MIXIN_KEY_ENC_TAB)[:32]
+        # P1 fix: cache WBI keys (they change infrequently)
+        if not hasattr(self, "_mixin_key") or not self._mixin_key:
+            nav = self._client.get("https://api.bilibili.com/x/web-interface/nav").json()
+            wbi = nav.get("data", {}).get("wbi_img", {})
+            img_key = wbi.get("img_url", "").split("/")[-1].split(".")[0]
+            sub_key = wbi.get("sub_url", "").split("/")[-1].split(".")[0]
+            self._mixin_key = "".join((img_key + sub_key)[i] for i in _MIXIN_KEY_ENC_TAB)[:32]
+        mixin_key = self._mixin_key
         params["wts"] = int(time.time())
         params = {
             k: "".join(c for c in str(v) if c not in "!'()*")

@@ -34,20 +34,22 @@ class DouyinDownloader(Downloader):
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+            try:
+                page = browser.new_page()
 
-            # Intercept network requests to capture media URLs
-            def handle_response(response) -> None:
-                url = response.url
-                if "douyinvod.com" in url and (".mp4" in url or ".m4a" in url):
-                    media_urls.append(url)
+                # Intercept network requests to capture media URLs
+                def handle_response(response) -> None:
+                    url = response.url
+                    if "douyinvod.com" in url and (".mp4" in url or ".m4a" in url):
+                        media_urls.append(url)
 
-            page.on("response", handle_response)
-            page.goto(source.url, wait_until="networkidle", timeout=30000)
-            page.wait_for_timeout(3000)  # Wait for media to load
+                page.on("response", handle_response)
+                page.goto(source.url, wait_until="networkidle", timeout=30000)
+                page.wait_for_timeout(3000)  # Wait for media to load
 
-            title = page.title() or "Douyin Video"
-            browser.close()
+                title = page.title() or "Douyin Video"
+            finally:
+                browser.close()  # P1 fix: always close browser on exception
 
         if not media_urls:
             raise RuntimeError("Could not capture Douyin media URL")

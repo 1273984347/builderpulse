@@ -71,12 +71,15 @@ def set_secret(key: str, value: str) -> None:
             pass
 
     data[key] = value
-    SECRETS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    # P2 fix: atomic write
+    tmp_path = SECRETS_FILE.with_suffix(".tmp")
+    tmp_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    import os
+    os.replace(str(tmp_path), str(SECRETS_FILE))
 
     # Set permissions (Unix only)
     if sys.platform != "win32":
         import os as _os
-
         _os.chmod(SECRETS_FILE, 0o600)
 
 

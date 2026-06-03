@@ -407,19 +407,19 @@ class State:
     def recover(self) -> int:
         """Reset stale items back to pending. Returns count of recovered items.
 
-        P1 fix: Wrapped in _lock() + single transaction to prevent partial recovery
-        on crash during the SELECT-then-N-UPDATEs sequence.
+        P1 fix: Wrapped in _lock() + explicit transaction to prevent partial recovery.
         """
         now = _utcnow_str()
         with self._lock():
             stale = self.get_recoverable()
             if not stale:
                 return 0
-            for item in stale:
-                self._conn.execute(
-                    "UPDATE processed_items SET status = 'pending', updated_at = ? WHERE idem_key = ?",
-                    (now, item.idem_key),
-                )
+            with self._conn:  # explicit BEGIN...COMMIT
+                for item in stale:
+                    self._conn.execute(
+                        "UPDATE processed_items SET status = 'pending', updated_at = ? WHERE idem_key = ?",
+                        (now, item.idem_key),
+                    )
             return len(stale)
 
     def get_retryable(self) -> list[Item]:
@@ -463,6 +463,7 @@ class State:
         """
         now = (last_seen_at or datetime.now(timezone.utc)).isoformat()
         with self._lock():
+            # P1 fix: use CAST for numeric comparison to handle Twitter snowflake IDs
             self._conn.execute(
                 """
                 INSERT INTO feed_cursors (source_type, account, last_seen_id, last_seen_at)
@@ -471,7 +472,9 @@ class State:
                     last_seen_id = excluded.last_seen_id,
                     last_seen_at = excluded.last_seen_at
                 WHERE feed_cursors.last_seen_id IS NULL
-                   OR feed_cursors.last_seen_id < excluded.last_seen_id
+                   OR CAST(feed_cursors.last_seen_id AS INTEGER) < CAST(excluded.last_seen_id AS INTEGER)
+                   OR (feed_cursors.last_seen_id < excluded.last_seen_id
+                       AND feed_cursors.last_seen_id NOT GLOB '[0-9]*')
                 """,
                 (source_type, account, last_seen_id, now),
             )
@@ -522,15 +525,16 @@ class State:
         run_id = uuid.uuid4().hex[:12]
         now = _utcnow_str()
         with self._lock():
-            self._conn.execute(
-                "INSERT INTO batch_runs (run_id, user_url, total, state, started_at) VALUES (?, ?, ?, 'running', ?)",
-                (run_id, user_url, len(items), now),
-            )
-            for item_id in items:
+            with self._conn:  # explicit transaction
                 self._conn.execute(
-                    "INSERT INTO batch_items (run_id, item_id, status, updated_at) VALUES (?, ?, 'pending', ?)",
-                    (run_id, item_id, now),
+                    "INSERT INTO batch_runs (run_id, user_url, total, state, started_at) VALUES (?, ?, ?, 'running', ?)",
+                    (run_id, user_url, len(items), now),
                 )
+                for item_id in items:
+                    self._conn.execute(
+                        "INSERT INTO batch_items (run_id, item_id, status, updated_at) VALUES (?, ?, 'pending', ?)",
+                        (run_id, item_id, now),
+                    )
         return run_id
 
     def update_batch_item(

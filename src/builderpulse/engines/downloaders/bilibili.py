@@ -106,13 +106,14 @@ class BilibiliDownloader(Downloader):
             raise RuntimeError(f"Stream URL error: {data.get('message')}")
 
         dash = data["data"].get("dash")
-        if dash:
-            # Pick first video stream
-            video_url = dash["video"][0]["baseUrl"]
-            return video_url
+        if dash and dash.get("video"):
+            return dash["video"][0]["baseUrl"]
 
         # Fallback to durl
-        return data["data"]["durl"][0]["url"]
+        durl_list = data["data"].get("durl", [])
+        if durl_list:
+            return durl_list[0]["url"]
+        raise RuntimeError("No stream URL found")
 
     def _wbi_sign(self, params: dict) -> dict:
         """WBI signing: fetch keys, compute mixin_key, sign params."""

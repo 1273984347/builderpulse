@@ -37,6 +37,14 @@ class DeliveryChannel(ABC):
         paragraphs = content.split("\n\n")
         chunks, current = [], ""
         for p in paragraphs:
+            # P1 fix: truncate oversized paragraphs
+            if len(p) > self.max_length:
+                if current:
+                    chunks.append(current)
+                    current = ""
+                for i in range(0, len(p), self.max_length):
+                    chunks.append(p[i:i + self.max_length])
+                continue
             if len(current) + len(p) + 2 > self.max_length:
                 if current:
                     chunks.append(current)

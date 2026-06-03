@@ -40,18 +40,21 @@ class PodcastSource:
         items: list[FeedItem] = []
 
         for entry in feed.entries[:limit]:
-            # Parse published date
-            published = None
-            if hasattr(entry, "published_parsed") and entry.published_parsed:
-                published = datetime(
-                    *entry.published_parsed[:6], tzinfo=timezone.utc
-                ).isoformat()
+            try:
+                # Parse published date
+                published = None
+                if hasattr(entry, "published_parsed") and entry.published_parsed:
+                    published = datetime(
+                        *entry.published_parsed[:6], tzinfo=timezone.utc
+                    ).isoformat()
 
-            # Skip old entries
-            if published:
-                pub_dt = datetime.fromisoformat(published)
-                if pub_dt < cutoff:
-                    continue
+                # Skip old entries
+                if published:
+                    pub_dt = datetime.fromisoformat(published)
+                    if pub_dt < cutoff:
+                        continue
+            except (ValueError, TypeError):
+                published = None  # P1 fix: skip malformed dates, don't kill feed
 
             # Get content (prefer content, fallback to summary)
             content = ""

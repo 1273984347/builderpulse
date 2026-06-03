@@ -105,14 +105,19 @@ class Config:
             env_name = _ENV_PREFIX + fld.name.upper()
             env_val = os.environ.get(env_name)
             if env_val is not None:
-                # Coerce to the field's type
-                fld_type = fld.type
-                # Handle Optional[X] → extract X
-                if hasattr(fld_type, "__origin__"):
-                    # typing.Optional[str] → str
-                    args = fld_type.__args__
-                    if args:
-                        fld_type = args[0]
+                # P1 fix: resolve string annotations to actual types
+                import typing
+                try:
+                    hints = typing.get_type_hints(type(self))
+                    fld_type = hints.get(fld.name, str)
+                    # Handle Optional[X] → extract X
+                    if hasattr(fld_type, "__origin__"):
+                        args = fld_type.__args__
+                        if args:
+                            fld_type = args[0]
+                except Exception:
+                    fld_type = str
+
                 if fld_type is bool:
                     setattr(self, fld.name, env_val.lower() in ("1", "true", "yes"))
                 elif fld_type is int:

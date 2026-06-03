@@ -39,7 +39,15 @@ class EmailChannel(DeliveryChannel):
         msg["Subject"] = title or "BuilderPulse Digest"
         msg["From"] = self.smtp_user
         msg["To"] = self.to
-        with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port) as s:
-            s.login(self.smtp_user, self.smtp_pass)
-            s.send_message(msg)
+
+        # P1 fix: SMTP_SSL for port 465, SMTP+STARTTLS for port 587
+        if self.smtp_port == 465:
+            with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port) as s:
+                s.login(self.smtp_user, self.smtp_pass)
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as s:
+                s.starttls()
+                s.login(self.smtp_user, self.smtp_pass)
+                s.send_message(msg)
         return True

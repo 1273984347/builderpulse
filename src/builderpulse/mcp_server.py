@@ -52,10 +52,18 @@ def run_mcp_server() -> None:
                 return None
 
         length = int(header_line.split(":")[1].strip())
+        # P1 fix: validate Content-Length bounds
+        if length < 0 or length > 10 * 1024 * 1024:  # 10MB cap
+            return None
         # Read the empty line after header
         stdin.readline()
-        # Read the body
-        body = stdin.read(length)
+        # P1 fix: handle partial reads
+        body = b""
+        while len(body) < length:
+            chunk = stdin.read(length - len(body))
+            if not chunk:
+                break
+            body += chunk
         return json.loads(body.decode("utf-8"))
 
     def write_message(msg: dict) -> None:
@@ -101,6 +109,7 @@ def run_mcp_server() -> None:
 
         except json.JSONDecodeError as e:
             logger.error("Invalid JSON: %s", e)
+            write_message(_make_error(None, -32700, f"Parse error: {e}"))
             continue
         except Exception as e:
             logger.error("Server error: %s", e)
@@ -108,7 +117,7 @@ def run_mcp_server() -> None:
 
 def main():
     """Entry point for `builderpulse-mcp` command."""
-    asyncio.run(run_mcp_server())
+    run_mcp_server()  # P0 fix: sync function, no asyncio.run()
 
 # ── Tool definitions ────────────────────────────────────────────
 

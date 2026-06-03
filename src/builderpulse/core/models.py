@@ -79,6 +79,8 @@ class SourceRef:
             # URL pattern: /user/status/1234567890
             parts = path.strip("/").split("/")
             tweet_id = parts[-1] if len(parts) >= 3 and parts[-2] == "status" else ""
+            if not tweet_id:
+                raise ValueError(f"Cannot extract tweet ID from URL: {url}")
             return cls(
                 source_type="twitter",
                 native_id=tweet_id,

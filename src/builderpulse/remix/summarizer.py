@@ -62,6 +62,17 @@ class OllamaProvider(LLMProvider):
 
 def get_provider(model: str = "auto", api_key: str | None = None) -> LLMProvider:
     """Auto-detect LLM provider from model name."""
+    import os
+
+    if model == "auto":
+        # P1 fix: auto-detect based on available API keys
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return AnthropicProvider(api_key=api_key, model="claude-sonnet-4-6")
+        elif os.environ.get("OPENAI_API_KEY"):
+            return OpenAIProvider(api_key=api_key, model="gpt-4o")
+        else:
+            return OllamaProvider(model="llama3")
+
     if model.startswith("claude"):
         return AnthropicProvider(api_key=api_key, model=model)
     elif model.startswith("gpt"):
