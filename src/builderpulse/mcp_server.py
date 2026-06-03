@@ -256,6 +256,12 @@ def _handle_batch_transcribe(user_url: str, limit: int = 50, language: str = "au
     return {"status": "not_implemented", "message": "Batch transcribe not yet implemented"}
 
 def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None) -> dict:
+    import json
+    from pathlib import Path
+
+    config_path = Path.home() / ".builderpulse" / "config.json"
+    cfg = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+
     from builderpulse.sources.podcast import PodcastSource
     from builderpulse.sources.twitter import TwitterSource
     from builderpulse.sources.blog import BlogSource
@@ -264,17 +270,20 @@ def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, de
     errors = []
 
     try:
-        items.extend(PodcastSource().fetch(days=days))
+        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+        items.extend(PodcastSource(feeds=feeds).fetch(days=days))
     except Exception as e:
         errors.append(f"podcast: {e}")
 
     try:
-        items.extend(TwitterSource().fetch())
+        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+        items.extend(TwitterSource(accounts=accounts).fetch())
     except Exception as e:
         errors.append(f"twitter: {e}")
 
     try:
-        items.extend(BlogSource().fetch(days=days))
+        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+        items.extend(BlogSource(urls=urls).fetch(days=days))
     except Exception as e:
         errors.append(f"blog: {e}")
 
@@ -327,18 +336,28 @@ def _handle_process(url: str, pipeline: str = "transcribe", deliver: str = None)
     }
 
 def _handle_fetch_feed(source: str, limit: int = 10, days: int = 7) -> dict:
+    import json
+    from pathlib import Path
+
+    config_path = Path.home() / ".builderpulse" / "config.json"
+    cfg = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+
     if source == "podcast":
         from builderpulse.sources.podcast import PodcastSource
-        items = PodcastSource().fetch(days=days, limit=limit)
+        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+        items = PodcastSource(feeds=feeds).fetch(days=days, limit=limit)
     elif source == "twitter":
         from builderpulse.sources.twitter import TwitterSource
-        items = TwitterSource().fetch(limit=limit)
+        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+        items = TwitterSource(accounts=accounts).fetch(limit=limit)
     elif source == "blog":
         from builderpulse.sources.blog import BlogSource
-        items = BlogSource().fetch(days=days, limit=limit)
+        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+        items = BlogSource(urls=urls).fetch(days=days, limit=limit)
     elif source == "bilibili":
         from builderpulse.sources.bilibili import BilibiliSource
-        items = BilibiliSource().fetch(limit=limit)
+        users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
+        items = BilibiliSource(users=users).fetch(limit=limit)
     elif source == "youtube":
         from builderpulse.sources.youtube import YouTubeSource
         items = YouTubeSource().fetch(limit=limit)
