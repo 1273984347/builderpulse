@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "builderpulse"
+version = "0.9.0"
+description = "Track what AI builders are saying — transcripts, digests, and insights delivered to you."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.0",
+    "httpx>=0.24",
+    "pydantic>=2.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+# Transcription engines (pick ONE — they conflict)
+whisper = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
+whisperx = ["whisperx>=3.1.1", "torch>=2.0", "torchaudio>=2.0", "pyannote.audio>=3.0", "numpy<2"]
+faster-whisper = ["faster-whisper>=0.10", "numpy<2"]
+# Browser automation (Bilibili + Douyin browser mode)
+browser = ["playwright>=1.40"]
+# Content sources
+sources = ["feedparser>=6.0", "beautifulsoup4>=4.12", "tweepy>=4.14"]
+# LLM providers
+llm = ["openai>=1.0", "anthropic>=0.20", "ollama>=0.1"]
+# MCP server
+mcp = ["mcp>=1.0"]
+# Keyring for secrets
+secrets = ["keyring>=24.0"]
+# CPU-only variant (no CUDA)
+cpu = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
+# Dev
+dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.1", "respx>=0.21"]
+
+[project.scripts]
+bp = "builderpulse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

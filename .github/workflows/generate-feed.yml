@@ -1,0 +1,33 @@
+name: Update Feeds
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Sources to update'
+        type: choice
+        options: [all, twitter, podcast, blog]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -e ".[sources]"
+      - run: python -c "
+          from builderpulse.sources.podcast import PodcastSource;
+          from builderpulse.sources.twitter import TwitterSource;
+          from builderpulse.sources.blog import BlogSource;
+          import json;
+          items = [];
+          items.extend(PodcastSource().fetch());
+          items.extend(TwitterSource().fetch());
+          items.extend(BlogSource().fetch());
+          print(json.dumps([{'title':i.title,'url':i.url} for i in items[:50]], indent=2));
+          "
+        env:
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}

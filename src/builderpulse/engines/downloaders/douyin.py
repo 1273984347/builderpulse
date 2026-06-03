@@ -1,0 +1,73 @@
+"""Douyin video downloader using Playwright to intercept media URLs."""
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+from builderpulse.core.models import SourceRef, DownloadResult
+from .base import Downloader
+
+
+class DouyinDownloader(Downloader):
+    """Download Douyin videos by intercepting media URLs via Playwright."""
+
+    def can_handle(self, source: SourceRef) -> bool:
+        return source.source_type == "douyin"
+
+    @property
+    def name(self) -> str:
+        return "douyin"
+
+    def download(self, source: SourceRef, output_dir: Path) -> DownloadResult:
+        """Download Douyin video using Playwright."""
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            raise ImportError(
+                "Playwright not installed. Run: "
+                "pip install builderpulse[browser] && python -m playwright install"
+            )
+
+        media_urls: list[str] = []
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+
+            # Intercept network requests to capture media URLs
+            def handle_response(response) -> None:
+                url = response.url
+                if "douyinvod.com" in url and (".mp4" in url or ".m4a" in url):
+                    media_urls.append(url)
+
+            page.on("response", handle_response)
+            page.goto(source.url, wait_until="networkidle", timeout=30000)
+            page.wait_for_timeout(3000)  # Wait for media to load
+
+            title = page.title() or "Douyin Video"
+            browser.close()
+
+        if not media_urls:
+            raise RuntimeError("Could not capture Douyin media URL")
+
+        # Download the first media URL
+        import httpx
+
+        media_url = media_urls[0]
+        output_path = output_dir / f"{source.native_id.replace('/', '_')}.mp4"
+
+        with httpx.stream("GET", media_url, follow_redirects=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(output_path, "wb") as f:
+                for chunk in r.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+
+        return DownloadResult(
+            path=str(output_path),
+            source_type="douyin",
+            native_id=source.native_id,
+            title=title,
+            duration=None,  # Duration not easily available
+        )
