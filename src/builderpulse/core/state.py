@@ -158,6 +158,8 @@ class State:
     _initialized_paths: set[str] = set()  # P2 fix: per-process dedup
     _init_lock = threading.Lock()  # P0 fix: atomic check-and-add for _initialized_paths
 
+    _conn_local = threading.local()  # P0 fix: per-thread SQLite connections
+
     def __init__(
         self,
         db_path: Optional[Path] = None,
@@ -167,16 +169,22 @@ class State:
         self._lock_path = lock_path or _DEFAULT_LOCK_PATH
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._conn = sqlite3.connect(
+        # Initialize schema using a temporary connection, then close it.
+        # Subsequent access uses the thread-local _conn property.
+        tmp_conn = sqlite3.connect(
             str(self._db_path),
-            isolation_level=None,  # autocommit for explicit transaction control
+            isolation_level=None,
         )
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.execute("PRAGMA wal_autocheckpoint=1000")  # P2: explicit checkpoint interval
+        tmp_conn.row_factory = sqlite3.Row
+        tmp_conn.execute("PRAGMA journal_mode=WAL")
+        tmp_conn.execute("PRAGMA busy_timeout=5000")
+        tmp_conn.execute("PRAGMA wal_autocheckpoint=1000")
 
-        self._init_schema()
+        # Store path for thread-local connection creation
+        self._db_path_str = str(self._db_path)
+
+        self._init_schema(tmp_conn)
+        tmp_conn.close()
 
         # P0 fix: atomic check-and-add to prevent race condition
         path_key = str(self._db_path.resolve())
@@ -188,14 +196,31 @@ class State:
         if needs_recovery:
             self.recover()
 
+    # ── Thread-local connection ───────────────────────────────────────
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        """Return a per-thread SQLite connection, creating it on first access."""
+        if not hasattr(self._conn_local, 'conn') or self._conn_local.conn is None:
+            conn = sqlite3.connect(
+                self._db_path_str,
+                isolation_level=None,
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA wal_autocheckpoint=1000")
+            self._conn_local.conn = conn
+        return self._conn_local.conn
+
     # ── Schema ────────────────────────────────────────────────────────
 
-    def _init_schema(self) -> None:
-        current_version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+    def _init_schema(self, conn: sqlite3.Connection) -> None:
+        current_version = conn.execute("PRAGMA user_version").fetchone()[0]
         if current_version >= _SCHEMA_VERSION:
             return
 
-        self._conn.executescript("""
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS processed_items (
                 idem_key    TEXT PRIMARY KEY,
                 source_type TEXT NOT NULL,
@@ -659,7 +684,9 @@ class State:
     # ── Context manager ───────────────────────────────────────────────
 
     def close(self) -> None:
-        self._conn.close()
+        if hasattr(self._conn_local, 'conn') and self._conn_local.conn is not None:
+            self._conn_local.conn.close()
+            self._conn_local.conn = None
 
     def __enter__(self):
         return self

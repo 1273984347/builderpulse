@@ -35,7 +35,7 @@ class DiskGuard:
     def __init__(
         self,
         min_bytes: int = 500 * 1024 * 1024,
-        check_interval: float = 30.0,
+        check_interval: float = 10.0,  # P1 fix: reduced from 30s for large downloads
     ) -> None:
         self._min_bytes = min_bytes
         self._check_interval = check_interval
@@ -101,3 +101,8 @@ class DiskGuard:
             except DiskFullError:
                 self._cached_result = None
                 await asyncio.sleep(poll)
+
+    def force_check(self, path: str | Path) -> None:
+        """Bypass cache, check disk space immediately."""
+        self._last_check = 0.0
+        self.check(path)

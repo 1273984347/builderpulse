@@ -43,8 +43,9 @@ class BatchManager:
         self._config = config
         self._cache = BatchCache(db_path)
         self._disk = DiskGuard(min_bytes=min_disk_bytes)
-        self._sem = asyncio.Semaphore(concurrency)
-        self._limiter = RateLimiter(qps=qps)
+        # P1 fix: store params; create asyncio primitives lazily in process_batch_async
+        self._concurrency = concurrency
+        self._qps = qps
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -73,10 +74,13 @@ class BatchManager:
 
     async def process_batch_async(self, urls: List[str]) -> List[Dict[str, Any]]:
         """Process URLs concurrently with semaphore + rate limiter."""
+        # P1 fix: create asyncio primitives lazily (no event loop in __init__)
+        sem = asyncio.Semaphore(self._concurrency)
+        limiter = RateLimiter(qps=self._qps)
 
         async def _guarded(url: str) -> Dict[str, Any]:
-            async with self._sem:
-                await self._limiter.acquire()
+            async with sem:
+                await limiter.acquire()
                 loop = asyncio.get_event_loop()
                 return await loop.run_in_executor(None, self._process_item, url)
 

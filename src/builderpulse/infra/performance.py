@@ -18,6 +18,7 @@ R = TypeVar("R")
 # ---------------------------------------------------------------------------
 STEP_TIMES: Dict[str, List[float]] = {}
 _STEP_TIMES_LOCK = threading.Lock()
+_MAX_TIMESTEPS = 1000  # P1 fix: cap per-step list size
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +44,10 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                 finally:
                     elapsed = time.perf_counter() - t0
                     with _STEP_TIMES_LOCK:
-                        STEP_TIMES.setdefault(step_name, []).append(elapsed)
+                        times = STEP_TIMES.setdefault(step_name, [])
+                        times.append(elapsed)
+                        if len(times) > _MAX_TIMESTEPS:
+                            STEP_TIMES[step_name] = times[-_MAX_TIMESTEPS:]
             return _async_wrapper
         else:
             @functools.wraps(func)
@@ -54,7 +58,10 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                 finally:
                     elapsed = time.perf_counter() - t0
                     with _STEP_TIMES_LOCK:
-                        STEP_TIMES.setdefault(step_name, []).append(elapsed)
+                        times = STEP_TIMES.setdefault(step_name, [])
+                        times.append(elapsed)
+                        if len(times) > _MAX_TIMESTEPS:
+                            STEP_TIMES[step_name] = times[-_MAX_TIMESTEPS:]
             return _sync_wrapper
 
     if fn is not None:

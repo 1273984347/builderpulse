@@ -101,7 +101,7 @@ class TestSchema:
     def test_idempotent_init(self, tmp_state):
         """Calling __init__ twice should not fail."""
         db_path = Path(tmp_state._conn.execute("PRAGMA database_list").fetchone()[2])
-        tmp_state._init_schema()  # should not raise
+        tmp_state._init_schema(tmp_state._conn)  # should not raise
 
 
 # ── CRUD tests ────────────────────────────────────────────────────────

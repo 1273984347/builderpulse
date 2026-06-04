@@ -33,12 +33,15 @@ def run_mcp_server() -> None:
     def read_message() -> dict | None:
         """Read a single JSON-RPC message from stdin."""
         # Read Content-Length header
+        _MAX_HEADER_LINE = 4096
         header_line = b""
         while True:
             byte = stdin.read(1)
             if not byte:
                 return None
             header_line += byte
+            if len(header_line) > _MAX_HEADER_LINE:
+                raise ValueError("Header line too long")
             if header_line.endswith(b"\r\n"):
                 break
 
@@ -241,6 +244,10 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
         return {"error": str(e)}
 
 def _handle_transcribe(url: str, engine: str = "auto", language: str = "auto", output_format: str = "markdown") -> dict:
+    from builderpulse.infra.security import is_safe_url
+    if not is_safe_url(url):
+        return {"error": f"URL not allowed: {url}"}
+
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe
 
@@ -330,6 +337,10 @@ def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, de
     return result
 
 def _handle_process(url: str, pipeline: str = "transcribe", deliver: str = None) -> dict:
+    from builderpulse.infra.security import is_safe_url
+    if not is_safe_url(url):
+        return {"error": f"URL not allowed: {url}"}
+
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe, step_summarize, step_deliver
 
@@ -409,7 +420,10 @@ def _handle_config(action: str, key: str = None, value: str = None) -> dict:
     if action == "show":
         return cfg.to_dict(mask_secrets=True)
     elif action == "get" and key:
-        return {key: getattr(cfg, key, None)}
+        # P0 fix: block access to sensitive keys via get
+        if Config._is_sensitive(key):
+            return {"error": f"Key '{key}' is sensitive. Use 'show' with mask_secrets=True."}
+        return {"key": key, "value": getattr(cfg, key, None)}
     elif action == "set" and key and value:
         return {"status": "set", "key": key, "message": "Config set not yet persistent"}
     else:

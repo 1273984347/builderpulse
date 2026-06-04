@@ -20,6 +20,11 @@ def get_transcriber(
     device: str = "cpu",
 ) -> Transcriber:
     """Get a transcriber instance. Auto-detects available engine if engine="auto"."""
+    # P1 fix: verify ffmpeg is available before returning a transcriber
+    from builderpulse.infra.platform_compat import find_ffmpeg
+    if not find_ffmpeg():
+        raise RuntimeError("FFmpeg not found. Install it: https://ffmpeg.org/download.html")
+
     if engine == "auto":
         for name in ["faster_whisper", "whisperx", "whisper"]:
             try:

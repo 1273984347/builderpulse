@@ -23,6 +23,11 @@ def cli():
 @click.option("--output", default="file", type=click.Choice(["file", "stdout"]), help="Output destination")
 def transcribe(url, engine, language, output):
     """Transcribe a video/audio URL to text."""
+    from builderpulse.infra.security import is_safe_url
+    if not is_safe_url(url):
+        click.echo(f"Error: URL not allowed: {url}", err=True)
+        sys.exit(1)
+
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import Pipeline, PipelineContext, step_download, step_transcribe
 
@@ -288,6 +293,11 @@ def fetch(source, limit, days, user):
 @click.option("--deliver", default=None, help="Delivery channels")
 def process(url, summarize, deliver):
     """End-to-end pipeline: download → transcribe → summarize → deliver."""
+    from builderpulse.infra.security import is_safe_url
+    if not is_safe_url(url):
+        click.echo(f"Error: URL not allowed: {url}", err=True)
+        sys.exit(1)
+
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe, step_summarize, step_deliver
 

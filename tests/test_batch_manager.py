@@ -69,8 +69,9 @@ class TestBatchManagerInit:
         mgr = BatchManager(config=None, db_path=tmp_path / "cache.db")
         assert mgr._cache is not None
         assert mgr._disk is not None
-        assert mgr._sem is not None
-        assert mgr._limiter is not None
+        # P1 fix: semaphore/limiter are now created lazily in process_batch_async
+        assert mgr._concurrency == 5
+        assert mgr._qps == 5.0
         mgr.shutdown()
 
 

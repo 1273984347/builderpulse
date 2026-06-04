@@ -32,6 +32,7 @@ class ConfigManager:
     """
 
     _lock: threading.RLock = threading.RLock()
+    _reload_lock: threading.Lock = threading.Lock()  # P1 fix: serialise concurrent reloads
     _config: Optional[Config] = None
     _subscribers: list[Callable[[Config], None]] = []
     _reloading: bool = False
@@ -90,34 +91,41 @@ class ConfigManager:
     def reload(cls) -> Config:
         """Reload config from disk and notify subscribers.
 
-        Reentrancy guard: if a reload is already in progress, returns the
-        cached config immediately.
+        Uses _reload_lock to serialise concurrent reloads. Reentrancy guard
+        prevents recursive reloads via subscriber callbacks.
         """
-        with cls._lock:
-            if cls._reloading:
-                return cls._config or Config.from_defaults()
+        with cls._reload_lock:  # P1 fix: serialise concurrent reloads
+            with cls._lock:
+                if cls._reloading:
+                    return cls._config or Config.from_defaults()
 
-            cls._reloading = True
-            cls._failed_callbacks.clear()
-            try:
-                path = cls.get_config_path()
-                new_config = Config.from_file(path)
-                cls._config = new_config
-                subs = cls._subscribers.copy()
-            finally:
-                cls._reloading = False  # Reset BEFORE calling callbacks
+                cls._reloading = True
+                cls._failed_callbacks.clear()
+                try:
+                    path = cls.get_config_path()
+                    # P1 fix: catch FileNotFoundError when config is deleted
+                    try:
+                        new_config = Config.from_file(path)
+                    except FileNotFoundError:
+                        logger.warning("Config file not found at %s, keeping cached config", path)
+                        cls._reloading = False
+                        return cls._config or Config.from_defaults()
+                    cls._config = new_config
+                    subs = cls._subscribers.copy()
+                finally:
+                    cls._reloading = False  # Reset BEFORE calling callbacks
 
-        for cb in subs:
-            try:
-                cb(new_config)
-            except Exception as exc:
-                with cls._lock:
-                    cls._failed_callbacks.append(
-                        {"callback": repr(cb), "error": str(exc)}
-                    )
-                logger.warning("Subscriber callback failed: %s", exc)
+            for cb in subs:
+                try:
+                    cb(new_config)
+                except Exception as exc:
+                    with cls._lock:
+                        cls._failed_callbacks.append(
+                            {"callback": repr(cb), "error": str(exc)}
+                        )
+                    logger.warning("Subscriber callback failed: %s", exc)
 
-        return new_config
+            return new_config
 
     # ── Subscribers ──────────────────────────────────────────────────────
 
