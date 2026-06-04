@@ -1,24 +1,15 @@
 """Bilibili content source — fetch user's video list."""
 from __future__ import annotations
 
-import hashlib
 import logging
-import time
-import urllib.parse
 from typing import Optional
 
 import httpx
 
 from builderpulse.core.models import FeedItem
+from builderpulse.core.shared_utils import wbi_sign
 
 logger = logging.getLogger("builderpulse.sources.bilibili")
-
-_MIXIN_KEY_ENC_TAB = [
-    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
-    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
-    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
-    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
-]
 
 
 class BilibiliSource:
@@ -69,22 +60,8 @@ class BilibiliSource:
         return items
 
     def _wbi_sign(self, params: dict) -> dict:
-        # P1 fix: cache WBI keys (they change infrequently)
-        if not hasattr(self, "_mixin_key") or not self._mixin_key:
-            nav = self._client.get("https://api.bilibili.com/x/web-interface/nav").json()
-            wbi = nav.get("data", {}).get("wbi_img", {})
-            img_key = wbi.get("img_url", "").split("/")[-1].split(".")[0]
-            sub_key = wbi.get("sub_url", "").split("/")[-1].split(".")[0]
-            self._mixin_key = "".join((img_key + sub_key)[i] for i in _MIXIN_KEY_ENC_TAB)[:32]
-        mixin_key = self._mixin_key
-        params["wts"] = int(time.time())
-        params = {
-            k: "".join(c for c in str(v) if c not in "!'()*")
-            for k, v in sorted(params.items())
-        }
-        query = urllib.parse.urlencode(params)
-        params["w_rid"] = hashlib.md5((query + mixin_key).encode()).hexdigest()
-        return params
+        """Sign params using shared WBI utility."""
+        return wbi_sign(params, self._client)
 
     def close(self):
         self._client.close()

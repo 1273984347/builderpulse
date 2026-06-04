@@ -1,24 +1,14 @@
 """Bilibili video downloader with WBI signing."""
 from __future__ import annotations
 
-import hashlib
-import time
-import urllib.parse
 from pathlib import Path
 from typing import Optional
 
 import httpx
 
 from builderpulse.core.models import SourceRef, DownloadResult
+from builderpulse.core.shared_utils import wbi_sign
 from .base import Downloader
-
-# WBI mixin key encoding table (from Bilibili web)
-_MIXIN_KEY_ENC_TAB = [
-    46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
-    27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
-    37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
-    22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
-]
 
 
 class BilibiliDownloader(Downloader):
@@ -126,35 +116,7 @@ class BilibiliDownloader(Downloader):
 
     def _wbi_sign(self, params: dict) -> dict:
         """WBI signing: fetch keys, compute mixin_key, sign params."""
-        # Get img_key and sub_key from nav API
-        nav = self._client.get(
-            "https://api.bilibili.com/x/web-interface/nav"
-        ).json()
-        wbi_img = nav.get("data", {}).get("wbi_img", {})
-        img_url = wbi_img.get("img_url", "")
-        sub_url = wbi_img.get("sub_url", "")
-
-        img_key = img_url.split("/")[-1].split(".")[0] if img_url else ""
-        sub_key = sub_url.split("/")[-1].split(".")[0] if sub_url else ""
-
-        mixin_key = self._get_mixin_key(img_key + sub_key)
-
-        params["wts"] = int(time.time())
-        # Sort and filter forbidden characters
-        params = {
-            k: "".join(c for c in str(v) if c not in "!'()*")
-            for k, v in sorted(params.items())
-        }
-        query = urllib.parse.urlencode(params)
-        params["w_rid"] = hashlib.md5(
-            (query + mixin_key).encode()
-        ).hexdigest()
-        return params
-
-    @staticmethod
-    def _get_mixin_key(raw: str) -> str:
-        """Compute mixin key from raw key using enc tab."""
-        return "".join(raw[i] for i in _MIXIN_KEY_ENC_TAB)[:32]
+        return wbi_sign(params, self._client)
 
     def _download_file(self, url: str, output_path: Path) -> None:
         """Download file from URL with proper referer header."""

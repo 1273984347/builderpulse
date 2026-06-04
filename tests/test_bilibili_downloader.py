@@ -1,5 +1,6 @@
 """Tests for Bilibili downloader."""
 from builderpulse.core.models import SourceRef
+from builderpulse.core.shared_utils import get_mixin_key
 from builderpulse.engines.downloaders.bilibili import BilibiliDownloader
 
 
@@ -26,9 +27,9 @@ def test_name():
 
 
 def test_wbi_mixin_key():
-    """Test the static mixin key computation produces a 32-char string."""
+    """Test the mixin key computation produces a 32-char string."""
     # Input must be at least 64 chars (enc tab indices go up to 63)
     raw = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    key = BilibiliDownloader._get_mixin_key(raw)
+    key = get_mixin_key(raw)
     assert len(key) == 32
     assert isinstance(key, str)
