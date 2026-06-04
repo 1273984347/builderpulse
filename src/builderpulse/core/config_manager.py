@@ -66,10 +66,7 @@ class ConfigManager:
 
     @classmethod
     def get(cls) -> Config:
-        """Return the current Config, loading it on first access (double-checked locking)."""
-        if cls._config is not None:
-            return cls._config
-
+        """Return the current Config, loading it on first access."""
         with cls._lock:
             if cls._config is not None:
                 return cls._config
@@ -97,29 +94,32 @@ class ConfigManager:
         cached config immediately.
         """
         if cls._reloading:
-            return cls._config or Config.from_defaults()
+            return cls.get()
 
         with cls._lock:
             if cls._reloading:
                 return cls._config or Config.from_defaults()
 
             cls._reloading = True
-            path = cls.get_config_path()
-            cls._config = Config.from_file(path)
-            new_config = cls._config
-
-        # Notify subscribers outside the lock to avoid deadlocks
-        cls._failed_callbacks.clear()
-        for callback in cls._subscribers:
+            cls._failed_callbacks.clear()
             try:
-                callback(new_config)
+                path = cls.get_config_path()
+                new_config = Config.from_file(path)
+                cls._config = new_config
+                subs = cls._subscribers.copy()
+            finally:
+                cls._reloading = False  # Reset BEFORE calling callbacks
+
+        for cb in subs:
+            try:
+                cb(new_config)
             except Exception as exc:
-                cls._failed_callbacks.append(
-                    {"callback": repr(callback), "error": str(exc)}
-                )
+                with cls._lock:
+                    cls._failed_callbacks.append(
+                        {"callback": repr(cb), "error": str(exc)}
+                    )
                 logger.warning("Subscriber callback failed: %s", exc)
 
-        cls._reloading = False
         return new_config
 
     # ── Subscribers ──────────────────────────────────────────────────────
@@ -127,12 +127,14 @@ class ConfigManager:
     @classmethod
     def subscribe(cls, callback: Callable[[Config], None]) -> None:
         """Register a callback to be notified on config reload."""
-        cls._subscribers.append(callback)
+        with cls._lock:
+            cls._subscribers.append(callback)
 
     @classmethod
     def get_failed_callbacks(cls) -> list[dict]:
         """Return a copy of callbacks that failed during the last reload."""
-        return list(cls._failed_callbacks)
+        with cls._lock:
+            return list(cls._failed_callbacks)
 
     # ── Internals ────────────────────────────────────────────────────────
 

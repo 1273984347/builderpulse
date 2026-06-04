@@ -109,11 +109,13 @@ class PluginRegistry:
             # Double-check after acquiring lock
             if group in self._loaded_groups:
                 return
-            self._loaded_groups.add(group)
+
+            self._load_errors.setdefault(group, [])
 
             ep_group_str = self._ENTRY_POINT_GROUPS.get(group)
             if ep_group_str is None:
                 # Unknown group — nothing to load
+                self._loaded_groups.add(group)
                 return
 
             self._plugins.setdefault(group, {})
@@ -124,6 +126,7 @@ class PluginRegistry:
                 msg = f"[{group}] entry_points lookup failed: {exc}"
                 logger.warning(msg)
                 self._load_errors[group].append(msg)
+                self._loaded_groups.add(group)
                 return
 
             for ep in eps:
@@ -145,6 +148,8 @@ class PluginRegistry:
                     msg = f"{ep.name}: {exc}"
                     logger.warning("Failed to load plugin %s.%s: %s", group, ep.name, exc)
                     self._load_errors[group].append(msg)
+
+            self._loaded_groups.add(group)
 
     # -- validation ----------------------------------------------------------
 
@@ -176,7 +181,8 @@ class PluginRegistry:
                 f"Plugin {plugin!r} does not satisfy {protocol} protocol"
             )
         name = getattr(plugin, "name", repr(plugin))
-        self._plugins.setdefault(group, {})[name] = plugin
+        with self._lock:
+            self._plugins.setdefault(group, {})[name] = plugin
 
     # -- public queries ------------------------------------------------------
 

@@ -3,6 +3,14 @@
 WAL mode + ``synchronous=NORMAL`` for performance.  Each thread gets its
 own connection via ``threading.local()`` so no ``check_same_thread=False``
 is needed.
+
+.. note::
+
+    Each thread that uses the cache **must** call :meth:`close` (or use the
+    context-manager) before exiting — otherwise the thread-local SQLite
+    connection will leak.  If multiple threads share a ``BatchCache`` instance,
+    each thread should call ``cache.close()`` (or ``cache.close_thread()``
+    which is an alias) before the thread exits.
 """
 from __future__ import annotations
 
@@ -11,6 +19,7 @@ import json
 import os
 import sqlite3
 import threading
+import weakref
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -27,10 +36,13 @@ class BatchCache:
         with BatchCache(path) as cache:
             cache.set(url, "done", result={"title": "..."})
             row = cache.get(url)
+
+    **Important:** Each thread that uses the cache must call :meth:`close`
+    (or use the context manager) before exiting to avoid leaking connections.
     """
 
-    # Track all instances for close_all()
-    _instances: List["BatchCache"] = []
+    # Track all instances for close_all() — weak refs avoid preventing GC
+    _instances: List["weakref.ref[BatchCache]"] = []
     _instances_lock = threading.Lock()
 
     def __init__(self, db_path: Path | str) -> None:
@@ -40,7 +52,7 @@ class BatchCache:
         self._init_schema()
 
         with BatchCache._instances_lock:
-            BatchCache._instances.append(self)
+            BatchCache._instances.append(weakref.ref(self))
 
     # ── Schema ────────────────────────────────────────────────────────
 
@@ -130,18 +142,28 @@ class BatchCache:
     # ── Lifecycle ─────────────────────────────────────────────────────
 
     def close(self) -> None:
-        """Close the thread-local connection."""
+        """Close the thread-local connection for the calling thread.
+
+        Each thread that uses the cache must call this method (or use the
+        context manager) before exiting.
+        """
         conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
         if conn is not None:
             conn.close()
             self._local.conn = None
 
+    def close_thread(self) -> None:
+        """Alias for :meth:`close`. Use when multiple threads share a cache."""
+        self.close()
+
     @classmethod
     def close_all(cls) -> None:
         """Close all BatchCache instances (for test cleanup)."""
         with cls._instances_lock:
-            for inst in cls._instances:
-                inst.close()
+            for ref in cls._instances:
+                inst = ref()
+                if inst is not None:
+                    inst.close()
             cls._instances.clear()
 
     # ── Context manager ───────────────────────────────────────────────
