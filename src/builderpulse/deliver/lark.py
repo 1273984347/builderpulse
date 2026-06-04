@@ -5,6 +5,11 @@ from .base import DeliveryChannel
 
 
 class LarkChannel(DeliveryChannel):
+    # P2 fix: explicit per-channel limit. Feishu text webhook accepts up
+    # to ~20KB but 4096 keeps digest chunks compatible with card layouts
+    # and sign-verification URL overhead.
+    max_length: int = 4096
+
     def __init__(self, webhook_url: str = "", **kwargs):
         self.webhook_url = webhook_url
 

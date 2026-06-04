@@ -5,6 +5,10 @@ from .base import DeliveryChannel
 
 
 class DingTalkChannel(DeliveryChannel):
+    # P2 fix: explicit per-channel limit. DingTalk text webhook accepts up
+    # to ~20KB per message; 20000 chars leaves headroom for sign+headers.
+    max_length: int = 20000
+
     def __init__(self, webhook_url: str = "", **kwargs):
         self.webhook_url = webhook_url
 

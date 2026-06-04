@@ -275,47 +275,12 @@ def _handle_batch_transcribe(user_url: str, limit: int = 50, language: str = "au
 
 def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None) -> dict:
     from builderpulse.core.config_manager import ConfigManager
+    # P2 fix (H4): delegate fetching to the shared aggregator so CLI and
+    # MCP code paths don't drift.
+    from builderpulse.core.source_aggregator import fetch_all_sources
+
     cfg = ConfigManager.get_raw()
-
-    from builderpulse.sources.podcast import PodcastSource
-    from builderpulse.sources.twitter import TwitterSource
-    from builderpulse.sources.blog import BlogSource
-
-    items = []
-    errors = []
-
-    podcast_src = None
-    try:
-        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
-        podcast_src = PodcastSource(feeds=feeds)
-        items.extend(podcast_src.fetch(days=days))
-    except Exception as e:
-        errors.append(f"podcast: {e}")
-    finally:
-        if podcast_src is not None:
-            podcast_src.close()
-
-    twitter_src = None
-    try:
-        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
-        twitter_src = TwitterSource(accounts=accounts)
-        items.extend(twitter_src.fetch())
-    except Exception as e:
-        errors.append(f"twitter: {e}")
-    finally:
-        if twitter_src is not None:
-            twitter_src.close()
-
-    blog_src = None
-    try:
-        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
-        blog_src = BlogSource(urls=urls)
-        items.extend(blog_src.fetch(days=days))
-    except Exception as e:
-        errors.append(f"blog: {e}")
-    finally:
-        if blog_src is not None:
-            blog_src.close()
+    items, errors = fetch_all_sources(cfg, days=days, sources=sources, skip_failed=True)
 
     result = {
         "item_count": len(items),

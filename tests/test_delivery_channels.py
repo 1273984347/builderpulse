@@ -211,7 +211,8 @@ class TestDingTalkChannel:
 
     def test_max_length_default(self):
         ch = DingTalkChannel(webhook_url="x")
-        assert ch.max_length == 4096
+        # P2 fix: DingTalk webhook accepts ~20KB messages.
+        assert ch.max_length == 20000
 
     def test_send_success(self, monkeypatch):
         ch = DingTalkChannel(webhook_url="https://hook.ding.example")

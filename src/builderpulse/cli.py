@@ -18,8 +18,11 @@ def cli():
 
 @cli.command()
 @click.argument("url")
-@click.option("--engine", default="auto", help="Transcription engine (auto/whisper/whisperx/faster-whisper)")
-@click.option("--language", default=None, help="Language code (zh/en/auto)")
+# P2 fix (H3): default=None; resolve from ConfigManager.get() at runtime
+# so a user who sets BUILDERPULSE_ENGINE in config.json does not have to
+# pass --engine on every CLI invocation.
+@click.option("--engine", default=None, help="Transcription engine (auto/whisper/whisperx/faster-whisper). Defaults to config value.")
+@click.option("--language", default=None, help="Language code (zh/en/auto). Defaults to config value.")
 @click.option("--output", default="file", type=click.Choice(["file", "stdout"]), help="Output destination")
 def transcribe(url, engine, language, output):
     """Transcribe a video/audio URL to text."""
@@ -28,13 +31,20 @@ def transcribe(url, engine, language, output):
         click.echo(f"Error: URL not allowed: {url}", err=True)
         sys.exit(1)
 
+    from builderpulse.core.config_manager import ConfigManager
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import Pipeline, PipelineContext, step_download, step_transcribe
+
+    cfg = ConfigManager.get()
+    if engine is None:
+        engine = cfg.engine
+    if language is None:
+        language = cfg.language
 
     source = SourceRef.from_url(url)
     click.echo(f"Transcribing: {source.url} ({source.source_type})")
 
-    p = Pipeline()
+    p = Pipeline(config=cfg)
     p.add(step_download)
     p.add(step_transcribe)
     ctx = p.run(source)
@@ -56,15 +66,20 @@ def transcribe(url, engine, language, output):
 @cli.command()
 @click.argument("user_url")
 @click.option("--limit", default=20, help="Max videos to process")
-@click.option("--engine", default="auto", help="Transcription engine")
+# P2 fix (H3): default=None; resolve from ConfigManager.get().engine
+@click.option("--engine", default=None, help="Transcription engine (defaults to config value)")
 @click.option("--concurrency", default=5, type=int, help="Max concurrent items")
 @click.option("--qps", default=5.0, type=float, help="Rate limit (requests/sec)")
 def batch(user_url, limit, engine, concurrency, qps):
     """Batch transcribe a creator's videos."""
     from builderpulse.batch.manager import BatchManager
     from builderpulse.core.config import Config
+    from builderpulse.core.config_manager import ConfigManager
 
-    cfg = Config(engine=engine)
+    base_cfg = ConfigManager.get()
+    if engine is None:
+        engine = base_cfg.engine
+    cfg = Config(engine=engine, language=base_cfg.language)
     click.echo(f"Batch mode: {user_url} (limit={limit})")
 
     # Resolve URLs from source
@@ -96,115 +111,45 @@ def batch(user_url, limit, engine, concurrency, qps):
 
 @cli.command()
 @click.option("--sources", default="all", help="Sources to fetch (comma-separated or 'all')")
-@click.option("--lang", default="en", help="Output language (en/zh/bilingual)")
+# P2 fix (H3): default=None; resolve from ConfigManager.get().language
+@click.option("--lang", default=None, help="Output language (en/zh/bilingual). Defaults to config value.")
 @click.option("--days", default=1, type=int, help="Lookback days")
 @click.option("--deliver", default=None, help="Delivery channels (comma-separated)")
 @click.option("--skip-failed", is_flag=True, default=True, help="Skip failed sources")
 @click.option("--no-state", is_flag=True, help="Ignore dedup state")
 def digest(sources, lang, days, deliver, skip_failed, no_state):
     """Generate AI builder digest."""
-    from builderpulse.sources.podcast import PodcastSource
-    from builderpulse.sources.twitter import TwitterSource
-    from builderpulse.sources.blog import BlogSource
-    from builderpulse.core.config import Config
     from builderpulse.core.config_manager import ConfigManager
+    from builderpulse.core.source_aggregator import fetch_all_sources
 
     # Load config to get source URLs
     cfg = ConfigManager.get_raw()
 
+    # Resolve --lang from config if not provided
+    if lang is None:
+        from builderpulse.core.config import Config as _Cfg
+        try:
+            lang = _Cfg.from_file(ConfigManager.get_config_path()).language
+        except Exception:
+            lang = "en"
+
     click.echo(f"Fetching content (last {days} days)...")
 
-    items = []
-    source_list = [s.strip() for s in sources.split(",")]
+    # P2 fix (H4): delegate fetching to the shared aggregator so CLI and
+    # MCP code paths don't drift. The aggregator returns (items, errors);
+    # we surface per-source counts to the user.
+    items, errors = fetch_all_sources(
+        cfg, days=days, sources=sources, skip_failed=skip_failed,
+    )
 
-    if sources == "all" or "podcast" in source_list:
-        src = None
-        try:
-            feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
-            src = PodcastSource(feeds=feeds)
-            podcast_items = src.fetch(days=days)
-            items.extend(podcast_items)
-            click.echo(f"  Podcasts: {len(podcast_items)} items")
-        except Exception as e:
-            if not skip_failed:
-                raise
-            click.echo(f"  Podcasts: skipped ({e})", err=True)
-        finally:
-            if src is not None:
-                src.close()
+    for err in errors:
+        # err is "source: message"
+        source_name = err.split(":", 1)[0]
+        msg = err.split(":", 1)[1].strip() if ":" in err else err
+        click.echo(f"  {source_name.capitalize()}s: skipped ({msg})", err=True)
 
-    if sources == "all" or "twitter" in source_list:
-        src = None
-        try:
-            accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
-            src = TwitterSource(accounts=accounts)
-            tweets = src.fetch()
-            items.extend(tweets)
-            click.echo(f"  Twitter: {len(tweets)} items")
-        except Exception as e:
-            if not skip_failed:
-                raise
-            click.echo(f"  Twitter: skipped ({e})", err=True)
-        finally:
-            if src is not None:
-                src.close()
-
-    if sources == "all" or "blog" in source_list:
-        src = None
-        try:
-            urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
-            src = BlogSource(urls=urls)
-            blogs = src.fetch(days=days)
-            items.extend(blogs)
-            click.echo(f"  Blogs: {len(blogs)} items")
-        except Exception as e:
-            if not skip_failed:
-                raise
-            click.echo(f"  Blogs: skipped ({e})", err=True)
-        finally:
-            if src is not None:
-                src.close()
-
-    if sources == "all" or "bilibili" in source_list:
-        src = None
-        try:
-            users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
-            if users:
-                from builderpulse.sources.bilibili import BilibiliSource
-                src = BilibiliSource(users=users)
-                bili_items = src.fetch()
-                items.extend(bili_items)
-                click.echo(f"  Bilibili: {len(bili_items)} items")
-            else:
-                click.echo("  Bilibili: no users configured, skipped")
-        except Exception as e:
-            if not skip_failed:
-                raise
-            click.echo(f"  Bilibili: skipped ({e})", err=True)
-        finally:
-            if src is not None:
-                src.close()
-
-    if sources == "all" or "youtube" in source_list:
-        src = None
-        try:
-            channels = cfg.get("sources", {}).get("youtube", {}).get("channels", [])
-            if channels:
-                from builderpulse.sources.youtube import YouTubeSource
-                src = YouTubeSource(channels=channels)
-                yt_items = src.fetch()
-                items.extend(yt_items)
-                click.echo(f"  YouTube: {len(yt_items)} items")
-            else:
-                click.echo("  YouTube: no channels configured, skipped")
-        except Exception as e:
-            if not skip_failed:
-                raise
-            click.echo(f"  YouTube: skipped ({e})", err=True)
-        finally:
-            if src is not None:
-                src.close()
-
+    # Note: per-source item counts are not shown here because the
+    # aggregator returns a flat list. The "Total" line below summarises.
     click.echo(f"\nTotal: {len(items)} items")
 
     if not items:

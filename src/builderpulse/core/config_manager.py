@@ -78,14 +78,47 @@ class ConfigManager:
             return cls._config
 
     @classmethod
-    def get_raw(cls) -> dict:
-        """Return the raw JSON config as a dict (includes fields not in Config dataclass)."""
+    def get_raw(cls, mask_secrets: bool = True) -> dict:
+        """Return the raw JSON config as a dict (includes fields not in Config dataclass).
+
+        When *mask_secrets* is True (default), values whose key matches
+        ``Config._is_sensitive`` (case-insensitive, underscore-insensitive)
+        are replaced with ``"****"`` recursively at every nesting level.
+        """
         path = cls.get_config_path()
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
+
+        if not mask_secrets:
+            return data
+        return cls._mask_secrets(data)
+
+    @classmethod
+    def _mask_secrets(cls, data: dict) -> dict:
+        """Recursively walk *data* and mask values for sensitive keys.
+
+        Sensitive detection uses :meth:`Config._is_sensitive` (case- and
+        underscore-insensitive). Strings, ints, and other leaf values are
+        replaced with ``"****"``; dicts are walked recursively; lists are
+        walked element-wise.
+        """
+        masked: dict = {}
+        for key, value in data.items():
+            if Config._is_sensitive(str(key)):
+                masked[key] = "****"
+            elif isinstance(value, dict):
+                masked[key] = cls._mask_secrets(value)
+            elif isinstance(value, list):
+                masked[key] = [
+                    cls._mask_secrets(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+            else:
+                masked[key] = value
+        return masked
 
     @classmethod
     def reload(cls) -> Config:

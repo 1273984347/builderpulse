@@ -81,7 +81,21 @@ class BatchManager:
         async def _guarded(url: str) -> Dict[str, Any]:
             async with sem:
                 await limiter.acquire()
-                loop = asyncio.get_event_loop()
+                # P2 fix: prefer get_running_loop() — get_event_loop() is
+                # deprecated for use inside coroutines (DeprecationWarning
+                # since Python 3.10). Fall back only if somehow no loop is
+                # running, which would itself be a programming error here.
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    import warnings
+                    warnings.warn(
+                        "No running event loop; falling back to "
+                        "asyncio.get_event_loop() (deprecated)",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    loop = asyncio.get_event_loop()
                 return await loop.run_in_executor(None, self._process_item, url)
 
         tasks = [_guarded(url) for url in urls]

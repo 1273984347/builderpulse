@@ -54,11 +54,20 @@ class SensitiveDataFilter(logging.Filter):
 
     Uses a fast-path: if the message contains none of the SENSITIVE_KEYWORDS,
     skip regex processing entirely.
+
+    NOTE: This filter is **one-shot** and not stackable. Each LogRecord is
+    marked on first processing so subsequent filter passes (e.g. when filters
+    are stacked) short-circuit. This prevents cumulative in-place mutation
+    of ``record.msg`` when multiple SensitiveDataFilter instances share the
+    same record.
     """
 
     SENSITIVE_KEYWORDS = [
         "w_rid", "wts", "sessdata", "api_key", "token", "secret",
     ]
+
+    # Marker attribute on LogRecord.__dict__ to prevent re-redaction.
+    _REDACTED_ATTR = "_bp_sensitive_redacted"
 
     # Pre-compiled regex: matches param=value pairs for sensitive names
     _URL_PARAM_RE = re.compile(
@@ -75,6 +84,10 @@ class SensitiveDataFilter(logging.Filter):
     )
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # Idempotency guard: skip records already processed by this filter.
+        if getattr(record, self._REDACTED_ATTR, False):
+            return True
+
         msg = record.getMessage()
         if not isinstance(msg, str):
             return True
@@ -83,10 +96,15 @@ class SensitiveDataFilter(logging.Filter):
         if not any(kw in msg.lower() for kw in self.SENSITIVE_KEYWORDS):
             return True
 
-        msg = self._redact_url(msg)
-        msg = self._redact_json(msg)
-        record.msg = msg
+        # Build a NEW redacted string and assign to record.msg.
+        # Assigning to record.msg is the documented logging.Filter contract
+        # for mutating the rendered message; we just guard against repeated
+        # application via the marker above.
+        redacted = self._redact_url(msg)
+        redacted = self._redact_json(redacted)
+        record.msg = redacted
         record.args = None
+        setattr(record, self._REDACTED_ATTR, True)
         return True
 
     @staticmethod
