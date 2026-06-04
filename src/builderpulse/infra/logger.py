@@ -2,34 +2,43 @@
 import logging
 import os
 import sys
+import threading
 
 _LOGGERS: dict[str, logging.Logger] = {}
+_LOGGER_LOCK = threading.Lock()
 
 def get_logger(name: str) -> logging.Logger:
-    """Get or create a logger. Respects BUILDERPULSE_MODE env var."""
+    """Get or create a logger. Respects BUILDERPULSE_MODE env var.
+
+    Thread-safe: uses double-checked locking to avoid races on _LOGGERS dict.
+    """
     if name in _LOGGERS:
         return _LOGGERS[name]
 
-    logger = logging.getLogger(f"builderpulse.{name}")
-    mode = os.environ.get("BUILDERPULSE_MODE", "cli").lower()
+    with _LOGGER_LOCK:
+        if name in _LOGGERS:
+            return _LOGGERS[name]
 
-    if mode == "mcp":
-        # MCP mode: ALL output → stderr (stdout is reserved for JSON-RPC)
-        handler = logging.StreamHandler(sys.stderr)
-    else:
-        # CLI mode: progress/results → stdout, logs → stderr
-        handler = logging.StreamHandler(sys.stderr)
+        logger = logging.getLogger(f"builderpulse.{name}")
+        mode = os.environ.get("BUILDERPULSE_MODE", "cli").lower()
 
-    handler.setFormatter(logging.Formatter(
-        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-        datefmt='%H:%M:%S'
-    ))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
+        if mode == "mcp":
+            # MCP mode: ALL output → stderr (stdout is reserved for JSON-RPC)
+            handler = logging.StreamHandler(sys.stderr)
+        else:
+            # CLI mode: progress/results → stdout, logs → stderr
+            handler = logging.StreamHandler(sys.stderr)
 
-    _LOGGERS[name] = logger
-    return logger
+        handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            datefmt='%H:%M:%S'
+        ))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+        _LOGGERS[name] = logger
+        return logger
 
 def is_mcp_mode() -> bool:
     """Check if running in MCP mode."""

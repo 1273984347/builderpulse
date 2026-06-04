@@ -277,23 +277,38 @@ def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, de
     items = []
     errors = []
 
+    podcast_src = None
     try:
         feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
-        items.extend(PodcastSource(feeds=feeds).fetch(days=days))
+        podcast_src = PodcastSource(feeds=feeds)
+        items.extend(podcast_src.fetch(days=days))
     except Exception as e:
         errors.append(f"podcast: {e}")
+    finally:
+        if podcast_src is not None:
+            podcast_src.close()
 
+    twitter_src = None
     try:
         accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
-        items.extend(TwitterSource(accounts=accounts).fetch())
+        twitter_src = TwitterSource(accounts=accounts)
+        items.extend(twitter_src.fetch())
     except Exception as e:
         errors.append(f"twitter: {e}")
+    finally:
+        if twitter_src is not None:
+            twitter_src.close()
 
+    blog_src = None
     try:
         urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
-        items.extend(BlogSource(urls=urls).fetch(days=days))
+        blog_src = BlogSource(urls=urls)
+        items.extend(blog_src.fetch(days=days))
     except Exception as e:
         errors.append(f"blog: {e}")
+    finally:
+        if blog_src is not None:
+            blog_src.close()
 
     result = {
         "item_count": len(items),
@@ -347,27 +362,37 @@ def _handle_fetch_feed(source: str, limit: int = 10, days: int = 7) -> dict:
     from builderpulse.core.config_manager import ConfigManager
     cfg = ConfigManager.get_raw()
 
-    if source == "podcast":
-        from builderpulse.sources.podcast import PodcastSource
-        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
-        items = PodcastSource(feeds=feeds).fetch(days=days, limit=limit)
-    elif source == "twitter":
-        from builderpulse.sources.twitter import TwitterSource
-        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
-        items = TwitterSource(accounts=accounts).fetch(limit=limit)
-    elif source == "blog":
-        from builderpulse.sources.blog import BlogSource
-        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
-        items = BlogSource(urls=urls).fetch(days=days, limit=limit)
-    elif source == "bilibili":
-        from builderpulse.sources.bilibili import BilibiliSource
-        users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
-        items = BilibiliSource(users=users).fetch(limit=limit)
-    elif source == "youtube":
-        from builderpulse.sources.youtube import YouTubeSource
-        items = YouTubeSource().fetch(limit=limit)
-    else:
-        return {"error": f"Unknown source: {source}"}
+    src = None
+    try:
+        if source == "podcast":
+            from builderpulse.sources.podcast import PodcastSource
+            feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+            src = PodcastSource(feeds=feeds)
+            items = src.fetch(days=days, limit=limit)
+        elif source == "twitter":
+            from builderpulse.sources.twitter import TwitterSource
+            accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+            src = TwitterSource(accounts=accounts)
+            items = src.fetch(limit=limit)
+        elif source == "blog":
+            from builderpulse.sources.blog import BlogSource
+            urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+            src = BlogSource(urls=urls)
+            items = src.fetch(days=days, limit=limit)
+        elif source == "bilibili":
+            from builderpulse.sources.bilibili import BilibiliSource
+            users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
+            src = BilibiliSource(users=users)
+            items = src.fetch(limit=limit)
+        elif source == "youtube":
+            from builderpulse.sources.youtube import YouTubeSource
+            src = YouTubeSource()
+            items = src.fetch(limit=limit)
+        else:
+            return {"error": f"Unknown source: {source}"}
+    finally:
+        if src is not None:
+            src.close()
 
     return {"items": [{"title": i.title, "url": i.url, "content": i.content[:200]} for i in items]}
 

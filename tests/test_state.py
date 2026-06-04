@@ -20,6 +20,14 @@ from builderpulse.core.state import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_initialized_paths():
+    """Clear _initialized_paths before and after each test to prevent leaks."""
+    State._initialized_paths.clear()
+    yield
+    State._initialized_paths.clear()
+
+
 @pytest.fixture
 def tmp_state(tmp_path):
     """Create a State instance with a temporary database."""

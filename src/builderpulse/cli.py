@@ -113,6 +113,7 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     source_list = [s.strip() for s in sources.split(",")]
 
     if sources == "all" or "podcast" in source_list:
+        src = None
         try:
             feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
             src = PodcastSource(feeds=feeds)
@@ -123,8 +124,12 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             if not skip_failed:
                 raise
             click.echo(f"  Podcasts: skipped ({e})", err=True)
+        finally:
+            if src is not None:
+                src.close()
 
     if sources == "all" or "twitter" in source_list:
+        src = None
         try:
             accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
             src = TwitterSource(accounts=accounts)
@@ -135,8 +140,12 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             if not skip_failed:
                 raise
             click.echo(f"  Twitter: skipped ({e})", err=True)
+        finally:
+            if src is not None:
+                src.close()
 
     if sources == "all" or "blog" in source_list:
+        src = None
         try:
             urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
             src = BlogSource(urls=urls)
@@ -147,8 +156,12 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             if not skip_failed:
                 raise
             click.echo(f"  Blogs: skipped ({e})", err=True)
+        finally:
+            if src is not None:
+                src.close()
 
     if sources == "all" or "bilibili" in source_list:
+        src = None
         try:
             users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
             if users:
@@ -163,8 +176,12 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             if not skip_failed:
                 raise
             click.echo(f"  Bilibili: skipped ({e})", err=True)
+        finally:
+            if src is not None:
+                src.close()
 
     if sources == "all" or "youtube" in source_list:
+        src = None
         try:
             channels = cfg.get("sources", {}).get("youtube", {}).get("channels", [])
             if channels:
@@ -179,6 +196,9 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             if not skip_failed:
                 raise
             click.echo(f"  YouTube: skipped ({e})", err=True)
+        finally:
+            if src is not None:
+                src.close()
 
     click.echo(f"\nTotal: {len(items)} items")
 
@@ -221,30 +241,40 @@ def fetch(source, limit, days, user):
 
     click.echo(f"Fetching from {source}...")
 
-    if source == "podcast":
-        from builderpulse.sources.podcast import PodcastSource
-        feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
-        items = PodcastSource(feeds=feeds).fetch(days=days, limit=limit)
-    elif source == "twitter":
-        from builderpulse.sources.twitter import TwitterSource
-        accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
-        items = TwitterSource(accounts=accounts).fetch(limit=limit)
-    elif source == "blog":
-        from builderpulse.sources.blog import BlogSource
-        urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
-        items = BlogSource(urls=urls).fetch(days=days, limit=limit)
-    elif source == "bilibili":
-        if not user:
-            click.echo("Error: --user <mid> required for bilibili", err=True)
-            sys.exit(1)
-        from builderpulse.sources.bilibili import BilibiliSource
-        items = BilibiliSource(users=[{"mid": int(user), "name": str(user)}]).fetch(limit=limit)
-    elif source == "youtube":
-        from builderpulse.sources.youtube import YouTubeSource
-        items = YouTubeSource().fetch(limit=limit)
-    else:
-        click.echo(f"Unknown source: {source}")
-        return
+    src = None
+    try:
+        if source == "podcast":
+            from builderpulse.sources.podcast import PodcastSource
+            feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
+            src = PodcastSource(feeds=feeds)
+            items = src.fetch(days=days, limit=limit)
+        elif source == "twitter":
+            from builderpulse.sources.twitter import TwitterSource
+            accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
+            src = TwitterSource(accounts=accounts)
+            items = src.fetch(limit=limit)
+        elif source == "blog":
+            from builderpulse.sources.blog import BlogSource
+            urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
+            src = BlogSource(urls=urls)
+            items = src.fetch(days=days, limit=limit)
+        elif source == "bilibili":
+            if not user:
+                click.echo("Error: --user <mid> required for bilibili", err=True)
+                sys.exit(1)
+            from builderpulse.sources.bilibili import BilibiliSource
+            src = BilibiliSource(users=[{"mid": int(user), "name": str(user)}])
+            items = src.fetch(limit=limit)
+        elif source == "youtube":
+            from builderpulse.sources.youtube import YouTubeSource
+            src = YouTubeSource()
+            items = src.fetch(limit=limit)
+        else:
+            click.echo(f"Unknown source: {source}")
+            return
+    finally:
+        if src is not None:
+            src.close()
 
     click.echo(f"Found {len(items)} items:")
     for item in items:

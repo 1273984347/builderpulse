@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -155,6 +156,7 @@ class State:
     """
 
     _initialized_paths: set[str] = set()  # P2 fix: per-process dedup
+    _init_lock = threading.Lock()  # P0 fix: atomic check-and-add for _initialized_paths
 
     def __init__(
         self,
@@ -176,10 +178,14 @@ class State:
 
         self._init_schema()
 
-        # P2 fix: only run recover() once per DB path per process
+        # P0 fix: atomic check-and-add to prevent race condition
         path_key = str(self._db_path.resolve())
-        if path_key not in State._initialized_paths:
-            State._initialized_paths.add(path_key)
+        with State._init_lock:
+            needs_recovery = path_key not in State._initialized_paths
+            if needs_recovery:
+                State._initialized_paths.add(path_key)
+
+        if needs_recovery:
             self.recover()
 
     # ── Schema ────────────────────────────────────────────────────────

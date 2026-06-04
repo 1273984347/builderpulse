@@ -137,7 +137,11 @@ async def retry_async(
 
     for attempt in range(max_retries + 1):
         try:
-            return fn(*args, **kwargs)
+            if asyncio.iscoroutinefunction(fn):
+                return await fn(*args, **kwargs)
+            else:
+                loop = asyncio.get_running_loop()
+                return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
         except Exception as exc:
             delay = 0.0 if attempt == 0 else min(backoff_base ** attempt, _BACKOFF_CAP)
             history.append((attempt, exc, delay))
