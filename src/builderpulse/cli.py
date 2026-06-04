@@ -52,10 +52,40 @@ def transcribe(url, engine, language, output):
 @click.argument("user_url")
 @click.option("--limit", default=20, help="Max videos to process")
 @click.option("--engine", default="auto", help="Transcription engine")
-def batch(user_url, limit, engine):
+@click.option("--concurrency", default=5, type=int, help="Max concurrent items")
+@click.option("--qps", default=5.0, type=float, help="Rate limit (requests/sec)")
+def batch(user_url, limit, engine, concurrency, qps):
     """Batch transcribe a creator's videos."""
+    from builderpulse.batch.manager import BatchManager
+    from builderpulse.core.config import Config
+
+    cfg = Config(engine=engine)
     click.echo(f"Batch mode: {user_url} (limit={limit})")
-    click.echo("Not yet implemented — use 'bp process' for single videos")
+
+    # Resolve URLs from source
+    from builderpulse.core.models import SourceRef
+    source = SourceRef.from_url(user_url)
+
+    # For now, process the single URL; multi-URL resolution is source-dependent
+    urls = [user_url]
+
+    mgr = BatchManager(
+        config=cfg,
+        concurrency=concurrency,
+        qps=qps,
+    )
+    try:
+        results = mgr.process_batch(urls)
+        succeeded = sum(1 for r in results if r.get("status") == "done")
+        failed = sum(1 for r in results if r.get("status") == "failed")
+        click.echo(f"Results: {succeeded} succeeded, {failed} failed")
+        for r in results:
+            if r.get("status") == "done":
+                click.echo(f"  OK: {r['url']}")
+            else:
+                click.echo(f"  FAIL: {r['url']} — {r.get('error', r.get('error_code', 'unknown'))}", err=True)
+    finally:
+        mgr.shutdown()
 
 # ── Digest ──────────────────────────────────────────────────────
 
