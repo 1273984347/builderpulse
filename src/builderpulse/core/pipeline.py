@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from builderpulse.batch.retry import retry
 from builderpulse.core.config import Config
+from builderpulse.core.error_codes import ErrorCode
 from builderpulse.core.models import DownloadResult, SourceRef, TranscriptResult
 from builderpulse.core.state import State
 
@@ -106,21 +109,68 @@ def step_transcribe(ctx: PipelineContext) -> PipelineContext:
 
 
 def step_summarize(ctx: PipelineContext) -> PipelineContext:
-    """Summarize content using LLM."""
+    """Summarize content using LLM with retry and fallback."""
     if not ctx.transcript and not ctx.error:
         ctx.error = "No transcript to summarize"
         return ctx
 
-    # Placeholder -- actual LLM integration in remix/summarizer.py
+    if not hasattr(ctx, "errors"):
+        ctx.errors = []
+
     text = ctx.transcript.text if ctx.transcript else ""
-    ctx.summary = text[:500] + "..." if len(text) > 500 else text
+    fallback = text[:500]
+
+    try:
+        from builderpulse.remix.summarizer import Summarizer, get_provider
+
+        provider = get_provider(
+            model=ctx.config.model if ctx.config else "auto",
+            api_key=ctx.config.api_key if ctx.config else None,
+        )
+        summarizer = Summarizer(provider)
+        ctx.summary = retry(
+            summarizer.summarize,
+            text,
+            max_retries=3,
+            backoff_base=2.0,
+        )
+    except Exception as e:
+        logger.warning("Summarize failed, using fallback: %s", e)
+        ctx.summary = fallback
+        ctx.errors.append({"error_code": ErrorCode.SUMMARIZE_FAILED, "detail": str(e)})
+
     return ctx
 
 
 def step_translate(ctx: PipelineContext) -> PipelineContext:
-    """Translate content."""
-    # Placeholder -- actual translation in remix/translator.py
-    ctx.translation = ctx.summary or (ctx.transcript.text if ctx.transcript else "")
+    """Translate content using LLM with retry and fallback."""
+    if not hasattr(ctx, "errors"):
+        ctx.errors = []
+
+    original = ctx.summary or (ctx.transcript.text if ctx.transcript else "")
+    target_lang = ctx.config.language if ctx.config else "zh"
+
+    try:
+        from builderpulse.remix.summarizer import get_provider
+        from builderpulse.remix.translator import Translator
+
+        provider = get_provider(
+            model=ctx.config.model if ctx.config else "auto",
+            api_key=ctx.config.api_key if ctx.config else None,
+        )
+        translator = Translator(provider)
+        ctx.translation = retry(
+            translator.translate,
+            original,
+            target_lang,
+            max_retries=3,
+            backoff_base=2.0,
+        )
+    except Exception as e:
+        logger.warning("Translate failed, using fallback: %s", e)
+        ctx.translation = original
+        ctx.errors.append({"error_code": ErrorCode.TRANSLATE_FAILED, "detail": str(e)})
+
     return ctx
 
 
