@@ -9,7 +9,9 @@ from .base import Transcriber
 
 
 class WhisperTranscriber(Transcriber):
-    def __init__(self):
+    def __init__(self, model: str = "base", device: str = "cpu"):
+        self._model_name = model
+        self._device = device
         try:
             import whisper  # noqa: F401
             self._model = None  # lazy load
@@ -22,7 +24,7 @@ class WhisperTranscriber(Transcriber):
         import whisper
 
         if self._model is None:
-            self._model = whisper.load_model("base")
+            self._model = whisper.load_model(self._model_name, device=self._device)
         result = self._model.transcribe(str(audio_path), language=language)
         return TranscriptResult(
             text=result["text"],

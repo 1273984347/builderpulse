@@ -265,11 +265,8 @@ def _handle_batch_transcribe(user_url: str, limit: int = 50, language: str = "au
     return {"status": "not_implemented", "message": "Batch transcribe not yet implemented"}
 
 def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None) -> dict:
-    import json
-    from pathlib import Path
-
-    config_path = Path.home() / ".builderpulse" / "config.json"
-    cfg = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    from builderpulse.core.config_manager import ConfigManager
+    cfg = ConfigManager.get_raw()
 
     from builderpulse.sources.podcast import PodcastSource
     from builderpulse.sources.twitter import TwitterSource
@@ -345,11 +342,8 @@ def _handle_process(url: str, pipeline: str = "transcribe", deliver: str = None)
     }
 
 def _handle_fetch_feed(source: str, limit: int = 10, days: int = 7) -> dict:
-    import json
-    from pathlib import Path
-
-    config_path = Path.home() / ".builderpulse" / "config.json"
-    cfg = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    from builderpulse.core.config_manager import ConfigManager
+    cfg = ConfigManager.get_raw()
 
     if source == "podcast":
         from builderpulse.sources.podcast import PodcastSource

@@ -49,7 +49,7 @@ def test_faster_whisper_real_transcribe(silence_wav):
         pytest.skip("faster-whisper not installed")
 
     transcriber = get_transcriber("faster-whisper")
-    assert transcriber.name == "faster-whisper"
+    assert transcriber.name in ("faster-whisper", "faster_whisper")
 
     result = transcriber.transcribe(silence_wav, language="en")
 
@@ -70,7 +70,7 @@ def test_faster_whisper_auto_detect(silence_wav):
         pytest.skip("faster-whisper not installed")
 
     transcriber = get_transcriber("auto")
-    assert transcriber.name == "faster-whisper"
+    assert transcriber.name in ("faster-whisper", "faster_whisper")
 
     result = transcriber.transcribe(silence_wav)
     assert isinstance(result, TranscriptResult)

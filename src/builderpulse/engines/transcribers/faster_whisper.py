@@ -9,7 +9,9 @@ from .base import Transcriber
 
 
 class FasterWhisperTranscriber(Transcriber):
-    def __init__(self):
+    def __init__(self, model: str = "base", device: str = "cpu"):
+        self._model_name = model
+        self._device = device
         try:
             from faster_whisper import WhisperModel  # noqa: F401
             self._model = None  # lazy load
@@ -22,7 +24,7 @@ class FasterWhisperTranscriber(Transcriber):
         from faster_whisper import WhisperModel
 
         if self._model is None:
-            self._model = WhisperModel("base", device="cpu")
+            self._model = WhisperModel(self._model_name, device=self._device)
         segments_raw, info = self._model.transcribe(str(audio_path), language=language)
         segments = [{"start": s.start, "end": s.end, "text": s.text} for s in segments_raw]
         text = " ".join(s["text"] for s in segments)

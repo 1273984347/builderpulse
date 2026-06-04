@@ -1,8 +1,10 @@
 """Blog content scraper using httpx + BeautifulSoup."""
 from __future__ import annotations
 
+import functools
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
@@ -11,11 +13,32 @@ from builderpulse.core.models import FeedItem
 logger = logging.getLogger("builderpulse.sources.blog")
 
 
+@functools.lru_cache(maxsize=1024)
+def _parse_date_utc(date_str: str) -> Optional[datetime]:
+    """Parse a date string into a naive UTC datetime.
+
+    Returns None if the string cannot be parsed.
+    Aware datetimes are converted to UTC then made naive.
+    """
+    if not date_str or not date_str.strip():
+        return None
+    try:
+        from dateutil.parser import parse as dateutil_parse
+        dt = dateutil_parse(date_str)
+    except (ValueError, OverflowError, TypeError):
+        return None
+    # Convert aware -> UTC naive
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 class BlogSource:
     """Scrape blog posts from configured URLs."""
 
-    def __init__(self, urls: list[str] | None = None):
+    def __init__(self, urls: list[str] | None = None, strict_date: bool = False):
         self.urls = urls or []
+        self.strict_date = strict_date
         self._client = httpx.Client(
             timeout=30,
             follow_redirects=True,
@@ -41,6 +64,7 @@ class BlogSource:
         soup = BeautifulSoup(r.text, "html.parser")
 
         items: list[FeedItem] = []
+        cutoff = datetime.utcnow() - timedelta(days=days)
 
         # Try to extract articles from common blog patterns
         articles = soup.find_all(
@@ -51,10 +75,21 @@ class BlogSource:
             # Fallback: extract all links with text
             items.extend(self._extract_links(soup, url, limit))
         else:
-            for article in articles[:limit]:
+            for article in articles:
                 item = self._parse_article(article, url)
-                if item:
-                    items.append(item)
+                if item is None:
+                    continue
+                # Date filtering
+                if item.published_at:
+                    dt = _parse_date_utc(item.published_at)
+                    if dt is None:
+                        if self.strict_date:
+                            continue  # skip unparseable dates in strict mode
+                    elif dt < cutoff:
+                        continue  # too old
+                items.append(item)
+                if len(items) >= limit:
+                    break
 
         return items[:limit]
 
@@ -80,6 +115,9 @@ class BlogSource:
         ) or article.find("div", class_=re.compile(r"summary|excerpt|desc"))
         content = content_el.get_text(strip=True) if content_el else ""
 
+        # Find published date
+        published_at = self._extract_date(article)
+
         return FeedItem(
             source_type="blog",
             source_id=link,
@@ -87,7 +125,24 @@ class BlogSource:
             title=title,
             content=content,
             author="Unknown",
+            published_at=published_at,
         )
+
+    @staticmethod
+    def _extract_date(element) -> Optional[str]:
+        """Extract a date string from an HTML element."""
+        # <time datetime="...">
+        time_el = element.find("time")
+        if time_el and time_el.get("datetime"):
+            return time_el["datetime"]
+        # <meta ... content="...">
+        meta = element.find("meta", attrs={"property": "article:published_time"})
+        if meta and meta.get("content"):
+            return meta["content"]
+        meta = element.find("meta", attrs={"name": "date"})
+        if meta and meta.get("content"):
+            return meta["content"]
+        return None
 
     def _extract_links(
         self, soup, base_url: str, limit: int

@@ -49,3 +49,17 @@ class TestRateLimiterAcquire:
         await limiter.acquire()
         elapsed = time.monotonic() - start
         assert elapsed < 0.1
+
+    def test_initial_tokens_default_to_qps(self) -> None:
+        limiter = RateLimiter(qps=20)
+        assert limiter._tokens == 20
+        assert limiter.qps == 20
+
+    @pytest.mark.asyncio
+    async def test_multiple_acquires_deplete_bucket(self) -> None:
+        limiter = RateLimiter(qps=10, tokens=3)
+        await limiter.acquire()
+        await limiter.acquire()
+        await limiter.acquire()
+        # Bucket should now be empty (0 tokens)
+        assert limiter._tokens < 1.0

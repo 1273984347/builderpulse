@@ -153,6 +153,38 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
                 raise
             click.echo(f"  Blogs: skipped ({e})", err=True)
 
+    if sources == "all" or "bilibili" in source_list:
+        try:
+            users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
+            if users:
+                from builderpulse.sources.bilibili import BilibiliSource
+                src = BilibiliSource(users=users)
+                bili_items = src.fetch()
+                items.extend(bili_items)
+                click.echo(f"  Bilibili: {len(bili_items)} items")
+            else:
+                click.echo("  Bilibili: no users configured, skipped")
+        except Exception as e:
+            if not skip_failed:
+                raise
+            click.echo(f"  Bilibili: skipped ({e})", err=True)
+
+    if sources == "all" or "youtube" in source_list:
+        try:
+            channels = cfg.get("sources", {}).get("youtube", {}).get("channels", [])
+            if channels:
+                from builderpulse.sources.youtube import YouTubeSource
+                src = YouTubeSource(channels=channels)
+                yt_items = src.fetch()
+                items.extend(yt_items)
+                click.echo(f"  YouTube: {len(yt_items)} items")
+            else:
+                click.echo("  YouTube: no channels configured, skipped")
+        except Exception as e:
+            if not skip_failed:
+                raise
+            click.echo(f"  YouTube: skipped ({e})", err=True)
+
     click.echo(f"\nTotal: {len(items)} items")
 
     if not items:
@@ -345,8 +377,20 @@ def config_set(key, value):
 
 @config.command("reload")
 def config_reload():
-    """Reload configuration (MCP server auto-reloads on each request)."""
-    click.echo("Configuration is auto-reloaded on each request. No manual reload needed.")
+    """Reload configuration from disk and notify subscribers."""
+    from builderpulse.core.config_manager import ConfigManager
+    path = ConfigManager.get_config_path()
+    if not Path(path).exists():
+        click.echo(f"Config file not found: {path}", err=True)
+        sys.exit(1)
+    cfg = ConfigManager.reload()
+    failed = ConfigManager.get_failed_callbacks()
+    click.echo(f"Reloaded config from: {path}")
+    click.echo(f"  language={cfg.language}, engine={cfg.engine}, model={cfg.model}")
+    if failed:
+        click.echo(f"  Warning: {len(failed)} subscriber callback(s) failed", err=True)
+        for f_cb in failed:
+            click.echo(f"    - {f_cb['callback']}: {f_cb['error']}", err=True)
 
 @config.command("init")
 def config_init():

@@ -20,12 +20,16 @@ __all__ = [
 logger = logging.getLogger("builderpulse.transcribers")
 
 
-def get_transcriber(engine: str = "auto") -> Transcriber:
+def get_transcriber(
+    engine: str = "auto",
+    model: str = "base",
+    device: str = "cpu",
+) -> Transcriber:
     """Get a transcriber instance. Auto-detects available engine if engine="auto"."""
     if engine == "auto":
         for name in ["faster_whisper", "whisperx", "whisper"]:
             try:
-                return _load_engine(name)
+                return _load_engine(name, model=model, device=device)
             except ImportError as e:
                 logger.debug(f"Engine {name} unavailable: {e}")
                 continue
@@ -33,18 +37,18 @@ def get_transcriber(engine: str = "auto") -> Transcriber:
             "No transcription engine installed. "
             "Install one of: pip install builderpulse[faster-whisper] | [whisper] | [whisperx]"
         )
-    return _load_engine(engine)
+    return _load_engine(engine, model=model, device=device)
 
 
-def _load_engine(name: str) -> Transcriber:
+def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcriber:
     if name == "whisper":
         from .whisper import WhisperTranscriber
-        return WhisperTranscriber()
+        return WhisperTranscriber(model=model, device=device)
     elif name == "whisperx":
         from .whisperx import WhisperXTranscriber
-        return WhisperXTranscriber()
+        return WhisperXTranscriber(model=model, device=device)
     elif name == "faster_whisper":
         from .faster_whisper import FasterWhisperTranscriber
-        return FasterWhisperTranscriber()
+        return FasterWhisperTranscriber(model=model, device=device)
     else:
         raise ValueError(f"Unknown engine: {name}")

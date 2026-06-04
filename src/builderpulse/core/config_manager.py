@@ -9,6 +9,7 @@ Wraps Config.from_file() with:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import stat
@@ -77,6 +78,16 @@ class ConfigManager:
             cls._check_config_permissions(path)
             cls._config = Config.from_file(path)
             return cls._config
+
+    @classmethod
+    def get_raw(cls) -> dict:
+        """Return the raw JSON config as a dict (includes fields not in Config dataclass)."""
+        path = cls.get_config_path()
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
     @classmethod
     def reload(cls) -> Config:

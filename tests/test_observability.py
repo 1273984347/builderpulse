@@ -62,3 +62,23 @@ def test_init_telemetry_default_service_name():
     tracer, meter = obs.init_telemetry()
     assert tracer is not None
     assert meter is not None
+
+
+def test_noop_tracer_returns_noop_span():
+    """NoOpTracer.start_span returns a NoOpSpan with working methods."""
+    tracer = obs._NoOpTracer()
+    span = tracer.start_span("test-span")
+    assert isinstance(span, obs._NoOpSpan)
+    # Methods should not raise
+    span.set_attribute("key", "value")
+    span.end()
+    with span:
+        pass  # context manager works
+
+def test_noop_meter_instruments():
+    """NoOpMeter counter/histogram add/record do not raise."""
+    meter = obs._NoOpMeter()
+    counter = meter.create_counter("requests")
+    histogram = meter.create_histogram("latency")
+    counter.add(1)
+    histogram.record(0.5)
