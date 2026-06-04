@@ -1,10 +1,31 @@
 """Tests for transcriber auto-detection and real transcription."""
+import os
+import shutil
 from pathlib import Path
 
 import pytest
 
 from builderpulse.engines.transcribers import get_transcriber
 from builderpulse.core.models import TranscriptResult
+
+
+def _heavy_test_env_available() -> bool:
+    """Check if heavy test deps (network + ffmpeg + faster-whisper) are available."""
+    if os.environ.get("BUILDERPULSE_RUN_HEAVY_TESTS") != "1":
+        return False
+    if not shutil.which("ffmpeg"):
+        return False
+    try:
+        import faster_whisper  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+requires_heavy = pytest.mark.skipif(
+    not _heavy_test_env_available(),
+    reason="Heavy test (requires BUILDERPULSE_RUN_HEAVY_TESTS=1, ffmpeg, faster-whisper, network)",
+)
 
 
 def test_get_transcriber_unknown_engine():
@@ -41,6 +62,7 @@ def silence_wav(tmp_path):
     return path
 
 
+@requires_heavy
 def test_faster_whisper_real_transcribe(silence_wav):
     """Real transcription test with faster-whisper (silence input)."""
     try:
@@ -62,6 +84,7 @@ def test_faster_whisper_real_transcribe(silence_wav):
     print(f"Transcribed silence: '{result.text}' ({len(result.segments)} segments)")
 
 
+@requires_heavy
 def test_faster_whisper_auto_detect(silence_wav):
     """Auto-detect should find faster-whisper when installed."""
     try:
