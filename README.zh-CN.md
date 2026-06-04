@@ -30,6 +30,9 @@ bp digest --lang zh --deliver telegram
 | **摘要** 使用 LLM | OpenAI、Anthropic、Ollama — 自动检测 |
 | **投递** 到你的渠道 | Telegram、飞书、钉钉、Discord、邮件、微信 |
 | **MCP Server** | 适配 Claude Code、Cursor、Continue 等 AI Agent |
+| **批量处理** | SQLite 缓存、断点续传、限流、磁盘守护 |
+| **可观测性** | OpenTelemetry 集成，链路追踪 + 指标 |
+| **插件系统** | 基于 entry_points 的可扩展架构 |
 
 ## 快速开始
 
@@ -42,6 +45,9 @@ bp transcribe "https://www.bilibili.com/video/BV1xxx"
 
 # 生成摘要（全源、中文、投递到 Telegram）
 bp digest --lang zh --deliver telegram
+
+# 批量转录创作者
+bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
 
 # 作为 MCP 工具使用（Claude Code / Cursor）
 bp serve
@@ -137,46 +143,74 @@ BuilderPulse 支持所有兼容 MCP 协议的 AI Agent。
 | `bp_process` | 端到端流水线 |
 | `bp_fetch_feed` | 抓取原始内容 |
 | `bp_list_sources` | 列出配置的源 |
-| `bp_config` | 查看/修改配置 |
+| `bp_config` | 查看/修改配置（密钥自动脱敏） |
 | `bp_reload_config` | 热重载配置 |
 
 ## CLI 命令
 
 ```bash
 bp transcribe <url>              # 单视频转录
-bp batch <user_url> --limit 20   # 批量转录创作者
+bp batch <user_url> --limit 20   # 批量转录（断点续传）
 bp digest --sources podcast,blog # 生成摘要
 bp fetch bilibili --user <mid>   # 抓取原始内容
 bp process <url> --summarize     # 端到端流水线
 bp clean                         # 清理旧文件
 bp config show                   # 查看配置
+bp config set <key> <value>      # 设置配置项
+bp config reload                 # 热重载配置
 bp serve                         # 启动 MCP Server
 ```
 
-## 项目结构
+## 架构
 
 ```
 builderpulse/
 ├── src/builderpulse/
-│   ├── core/          # 状态、模型、配置、流水线
-│   ├── engines/       # 下载器 + 转录引擎
+│   ├── core/          # 配置、状态（SQLite）、流水线、模型、错误码
+│   ├── engines/       # 下载器（yt-dlp、B站、抖音）+ 转录引擎
 │   ├── sources/       # 内容聚合（播客、博客、推特、B站、YouTube）
 │   ├── remix/         # LLM 摘要 + 翻译
 │   ├── deliver/       # 8 个投递渠道
-│   ├── infra/         # 日志、密钥、国际化、安全
+│   ├── batch/         # 批量处理（缓存、磁盘守护、限流器）
+│   ├── plugins/       # 插件注册表（基于 entry_points）
+│   ├── infra/         # 日志、安全、国际化、可观测性、性能分析
 │   ├── cli.py         # CLI 入口
 │   └── mcp_server.py  # MCP Server（JSON-RPC over stdio）
-├── tests/             # 126 个测试
+├── tests/             # 449 个测试
 ├── prompts/           # LLM prompt 模板
+├── docs/              # 架构文档、插件开发指南、迁移指南
 └── .claude-plugin/    # Claude Code 插件清单
 ```
 
+### 核心设计模式
+
+| 模式 | 位置 | 用途 |
+|:-----|:-----|:-----|
+| **插件注册表** | `plugins/` | 基于 `importlib.metadata.entry_points()` 的可扩展架构 |
+| **ConfigManager** | `core/config_manager.py` | 线程安全单例 + 热重载 |
+| **重试 + 降级** | `batch/retry.py` | 指数退避 + 完整尝试历史 |
+| **错误码** | `core/error_codes.py` | 程序化错误识别 |
+| **Agent 输出** | `infra/agent_output.py` | 版本化 JSON schema（MCP 兼容） |
+| **可观测性** | `infra/observability.py` | OpenTelemetry span + 指标 |
+| **SQLite WAL** | `core/state.py`、`batch/cache.py` | 并发读写 + 崩溃恢复 |
+
 ## 数据
 
-- **81 个文件** / 6,500+ 行 Python
-- **126 个测试** 全部通过
+- **90+ 个文件** / 12,000+ 行 Python
+- **449 个测试** 全部通过
 - **8 个 MCP 工具** 适配 AI Agent
 - **8 个投递渠道**（Telegram、飞书、钉钉、Discord、邮件、微信、企业微信、stderr）
 - **5 个内容源**（X/Twitter、播客、博客、B站、YouTube）
 - **3 个转录引擎**（Whisper、WhisperX、faster-whisper）
 - **零 Node.js 依赖** — 纯 Python
+
+## 文档
+
+- [架构概览](docs/architecture.md)
+- [插件开发指南](docs/plugins.md)
+- [错误码参考](docs/error-codes.md)
+- [v1 → v2 迁移指南](docs/migration-v2.md)
+
+## 许可证
+
+MIT

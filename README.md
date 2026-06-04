@@ -29,8 +29,11 @@ bp digest --lang zh --deliver telegram
 | **Transcribe** any video to text | YouTube, Bilibili, Douyin, 1000+ sites via yt-dlp |
 | **Aggregate** AI builder content | X/Twitter, podcasts, blogs, Bilibili, YouTube |
 | **Summarize** with LLM | OpenAI, Anthropic, Ollama — auto-detects |
-| **Deliver** to your channels | Telegram, 飞书, 钉钉, Discord, Email, WeChat |
+| **Deliver** to your channels | Telegram, Lark, DingTalk, Discord, Email, WeChat |
 | **MCP Server** | Works with Claude Code, Cursor, Continue, any MCP agent |
+| **Batch processing** | Resumable batch with SQLite cache, rate limiting, disk guard |
+| **Observability** | OpenTelemetry integration for tracing and metrics |
+| **Plugin system** | Extensible via Python entry_points |
 
 ## Quick Start
 
@@ -39,10 +42,13 @@ bp digest --lang zh --deliver telegram
 pip install builderpulse
 
 # Transcribe a video
-bp transcribe "https://www.youtube.com/watch?v=..."
+bp transcribe "https://www.bilibili.com/video/BV1xxx"
 
 # Generate a digest (all sources, Chinese output, send to Telegram)
 bp digest --lang zh --deliver telegram
+
+# Batch transcribe a creator
+bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
 
 # Use as MCP tool in Claude Code / Cursor
 bp serve
@@ -138,46 +144,74 @@ Or use the skill: `/builderpulse`
 | `bp_process` | End-to-end pipeline |
 | `bp_fetch_feed` | Fetch raw content from source |
 | `bp_list_sources` | List configured sources |
-| `bp_config` | View/modify config |
+| `bp_config` | View/modify config (secrets masked) |
 | `bp_reload_config` | Hot-reload config |
 
 ## CLI Commands
 
 ```bash
 bp transcribe <url>              # Single video transcription
-bp batch <user_url> --limit 20   # Batch transcribe creator
+bp batch <user_url> --limit 20   # Batch transcribe creator (resumable)
 bp digest --sources podcast,blog # Generate digest
 bp fetch bilibili --user <mid>   # Fetch raw content
 bp process <url> --summarize     # End-to-end pipeline
 bp clean                         # Clean old output files
 bp config show                   # Show configuration
+bp config set <key> <value>      # Set config value
+bp config reload                 # Hot-reload config
 bp serve                         # Start MCP server
 ```
 
-## Project Structure
+## Architecture
 
 ```
 builderpulse/
 ├── src/builderpulse/
-│   ├── core/          # State, models, config, pipeline
+│   ├── core/          # Config, State (SQLite), Pipeline, models, error codes
 │   ├── engines/       # Downloaders (yt-dlp, bilibili, douyin) + Transcribers
 │   ├── sources/       # Content aggregation (podcast, blog, twitter, bilibili, youtube)
 │   ├── remix/         # LLM summarization + translation
 │   ├── deliver/       # 8 delivery channels
-│   ├── infra/         # Logger, secrets, i18n, security
+│   ├── batch/         # Batch processing (cache, disk guard, rate limiter)
+│   ├── plugins/       # Plugin registry (entry_points based)
+│   ├── infra/         # Logger, security, i18n, observability, performance
 │   ├── cli.py         # CLI entry point
 │   └── mcp_server.py  # MCP Server (JSON-RPC over stdio)
-├── tests/             # 126 tests
+├── tests/             # 449 tests
 ├── prompts/           # LLM prompt templates
+├── docs/              # Architecture, plugin dev guide, migration guide
 └── .claude-plugin/    # Claude Code plugin manifest
 ```
 
+### Key Design Patterns
+
+| Pattern | Where | Purpose |
+|:--------|:------|:--------|
+| **Plugin Registry** | `plugins/` | Extensible via `importlib.metadata.entry_points()` |
+| **ConfigManager** | `core/config_manager.py` | Thread-safe singleton with hot-reload |
+| **Retry + Fallback** | `batch/retry.py` | Exponential backoff with attempt history |
+| **Error Codes** | `core/error_codes.py` | Programmatic error identification |
+| **Agent Output** | `infra/agent_output.py` | Versioned JSON schema for MCP clients |
+| **Observability** | `infra/observability.py` | OpenTelemetry spans and metrics |
+| **SQLite WAL** | `core/state.py`, `batch/cache.py` | Concurrent read/write with crash recovery |
+
 ## Stats
 
-- **81 files** / 6,500+ lines of Python
-- **126 tests** passing
+- **90+ files** / 12,000+ lines of Python
+- **449 tests** passing
 - **8 MCP tools** for AI agent integration
-- **8 delivery channels** (Telegram, 飞书, 钉钉, Discord, Email, WeChat, 企业微信, stderr)
+- **8 delivery channels** (Telegram, Lark, DingTalk, Discord, Email, WeChat, WeCom, stderr)
 - **5 content sources** (X/Twitter, Podcasts, Blogs, Bilibili, YouTube)
 - **3 transcription engines** (Whisper, WhisperX, faster-whisper)
 - **Zero Node.js dependency** — pure Python
+
+## Documentation
+
+- [Architecture Overview](docs/architecture.md)
+- [Plugin Development Guide](docs/plugins.md)
+- [Error Code Reference](docs/error-codes.md)
+- [v1 → v2 Migration Guide](docs/migration-v2.md)
+
+## License
+
+MIT
