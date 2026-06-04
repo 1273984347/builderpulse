@@ -168,6 +168,13 @@ class BatchCache:
 
     # ── Context manager ───────────────────────────────────────────────
 
+    def __del__(self) -> None:
+        """Safety net: close thread-local connection on garbage collection."""
+        try:
+            self.close()
+        except Exception:
+            pass
+
     def __enter__(self) -> "BatchCache":
         return self
 

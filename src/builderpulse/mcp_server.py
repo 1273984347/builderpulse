@@ -11,8 +11,6 @@ import os
 import sys
 from typing import Any
 
-os.environ["BUILDERPULSE_MODE"] = "mcp"
-
 logger = logging.getLogger("builderpulse.mcp")
 
 # ── MCP Protocol ────────────────────────────────────────────────
@@ -25,6 +23,7 @@ def _make_error(request_id: Any, code: int, message: str) -> dict:
 
 def run_mcp_server() -> None:
     """Run MCP server over stdio (JSON-RPC 2.0). Synchronous for Windows compatibility."""
+    os.environ["BUILDERPULSE_MODE"] = "mcp"
     import sys
 
     # Use binary mode for stdin/stdout to handle Content-Length framing
@@ -234,6 +233,9 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
 
     try:
         return handler(**arguments)
+    except TypeError as e:
+        logger.error("Tool %s invalid arguments: %s", tool_name, e)
+        return {"error": f"Invalid arguments: {e}"}
     except Exception as e:
         logger.error("Tool %s failed: %s", tool_name, e)
         return {"error": str(e)}

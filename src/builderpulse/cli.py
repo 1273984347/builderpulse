@@ -102,15 +102,10 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     from builderpulse.sources.twitter import TwitterSource
     from builderpulse.sources.blog import BlogSource
     from builderpulse.core.config import Config
-    import json
-    from pathlib import Path
+    from builderpulse.core.config_manager import ConfigManager
 
     # Load config to get source URLs
-    config_path = Path.home() / ".builderpulse" / "config.json"
-    if config_path.exists():
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
-    else:
-        cfg = {}
+    cfg = ConfigManager.get_raw()
 
     click.echo(f"Fetching content (last {days} days)...")
 
@@ -219,15 +214,10 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
 @click.option("--user", default=None, help="User ID (for bilibili)")
 def fetch(source, limit, days, user):
     """Fetch raw content from a source."""
-    import json
-    from pathlib import Path
+    from builderpulse.core.config_manager import ConfigManager
 
     # Load config
-    config_path = Path.home() / ".builderpulse" / "config.json"
-    if config_path.exists():
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
-    else:
-        cfg = {}
+    cfg = ConfigManager.get_raw()
 
     click.echo(f"Fetching from {source}...")
 
@@ -356,15 +346,15 @@ def config_set(key, value):
         target = target[k]
 
     # Auto-detect type
-    if value.lower() in ("true", "false"):
-        value = value.lower() == "true"
-    elif value.lstrip("-").isdigit():
+    try:
         value = int(value)
-    else:
+    except ValueError:
         try:
             value = float(value)
         except ValueError:
-            pass  # keep as string
+            if value.lower() in ("true", "false"):
+                value = value.lower() == "true"
+            # else keep as string
 
     target[keys[-1]] = value
 

@@ -49,7 +49,13 @@ class BatchManager:
     # ── Public API ────────────────────────────────────────────────────
 
     def process_batch(self, urls: List[str]) -> List[Dict[str, Any]]:
-        """Process a list of URLs synchronously.  Returns list of result dicts."""
+        """Process a list of URLs synchronously.  Returns list of result dicts.
+
+        Note: This sync path is intentionally sequential with no rate limiting.
+        Rate limiting is only needed for async/concurrent paths to avoid
+        overwhelming external services. Sequential processing is inherently
+        self-throttling.
+        """
         results: List[Dict[str, Any]] = []
         for url in urls:
             try:
@@ -71,7 +77,8 @@ class BatchManager:
         async def _guarded(url: str) -> Dict[str, Any]:
             async with self._sem:
                 await self._limiter.acquire()
-                return self._process_item(url)
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(None, self._process_item, url)
 
         tasks = [_guarded(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)

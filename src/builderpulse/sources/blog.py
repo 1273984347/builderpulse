@@ -64,7 +64,7 @@ class BlogSource:
         soup = BeautifulSoup(r.text, "html.parser")
 
         items: list[FeedItem] = []
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
         # Try to extract articles from common blog patterns
         articles = soup.find_all(

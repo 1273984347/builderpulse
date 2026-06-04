@@ -5,6 +5,7 @@ import asyncio
 import functools
 import json
 import pickle  # noqa: S403 — needed for ProcessPoolExecutor compatibility checks
+import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
@@ -16,6 +17,7 @@ R = TypeVar("R")
 # Global step timings — keyed by step name, values are lists of durations
 # ---------------------------------------------------------------------------
 STEP_TIMES: Dict[str, List[float]] = {}
+_STEP_TIMES_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +42,8 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                     return await func(*args, **kwargs)
                 finally:
                     elapsed = time.perf_counter() - t0
-                    STEP_TIMES.setdefault(step_name, []).append(elapsed)
+                    with _STEP_TIMES_LOCK:
+                        STEP_TIMES.setdefault(step_name, []).append(elapsed)
             return _async_wrapper
         else:
             @functools.wraps(func)
@@ -50,7 +53,8 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                     return func(*args, **kwargs)
                 finally:
                     elapsed = time.perf_counter() - t0
-                    STEP_TIMES.setdefault(step_name, []).append(elapsed)
+                    with _STEP_TIMES_LOCK:
+                        STEP_TIMES.setdefault(step_name, []).append(elapsed)
             return _sync_wrapper
 
     if fn is not None:

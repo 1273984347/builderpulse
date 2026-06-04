@@ -93,9 +93,6 @@ class ConfigManager:
         Reentrancy guard: if a reload is already in progress, returns the
         cached config immediately.
         """
-        if cls._reloading:
-            return cls.get()
-
         with cls._lock:
             if cls._reloading:
                 return cls._config or Config.from_defaults()

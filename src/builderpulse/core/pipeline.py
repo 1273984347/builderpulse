@@ -29,6 +29,7 @@ class PipelineContext:
     translation: str | None = None
     delivery_results: dict[str, bool] = field(default_factory=dict)
     error: str | None = None
+    errors: list = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -114,9 +115,6 @@ def step_summarize(ctx: PipelineContext) -> PipelineContext:
         ctx.error = "No transcript to summarize"
         return ctx
 
-    if not hasattr(ctx, "errors"):
-        ctx.errors = []
-
     text = ctx.transcript.text if ctx.transcript else ""
     fallback = text[:500]
 
@@ -144,9 +142,6 @@ def step_summarize(ctx: PipelineContext) -> PipelineContext:
 
 def step_translate(ctx: PipelineContext) -> PipelineContext:
     """Translate content using LLM with retry and fallback."""
-    if not hasattr(ctx, "errors"):
-        ctx.errors = []
-
     original = ctx.summary or (ctx.transcript.text if ctx.transcript else "")
     target_lang = ctx.config.language if ctx.config else "zh"
 
@@ -199,9 +194,16 @@ def step_deliver(channel: str) -> Callable:
 
 
 def _get_downloaders(config: Config | None) -> list:
-    """Get available downloaders."""
-    from builderpulse.engines.downloaders.bilibili import BilibiliDownloader
-    from builderpulse.engines.downloaders.douyin import DouyinDownloader
-    from builderpulse.engines.downloaders.yt_dlp import YtDlpDownloader
+    """Get available downloaders, preferring plugin registry."""
+    from builderpulse.plugins import PluginRegistry
 
-    return [YtDlpDownloader(), BilibiliDownloader(), DouyinDownloader()]
+    registry = PluginRegistry()
+    downloaders = list(registry.list_plugins("downloaders").values())
+    if not downloaders:
+        # Fallback to hardcoded defaults
+        from builderpulse.engines.downloaders.bilibili import BilibiliDownloader
+        from builderpulse.engines.downloaders.douyin import DouyinDownloader
+        from builderpulse.engines.downloaders.yt_dlp import YtDlpDownloader
+
+        downloaders = [YtDlpDownloader(), BilibiliDownloader(), DouyinDownloader()]
+    return downloaders
