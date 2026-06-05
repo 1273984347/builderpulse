@@ -1,64 +1,118 @@
-# BuilderPulse v2.0.0 — Release Notes
+# BuilderPulse v2.0.0
 
-**Release date:** 2026-06-04
-**Status:** Stable
-**Python:** >= 3.9
+> **One command replaces 30 minutes of morning browsing.**
 
-## Headline
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+[![Tests: 449 passing](https://img.shields.io/badge/tests-449%20passing-brightgreen.svg)]()
 
-v2.0.0 turns BuilderPulse from "two separate tools" into a single composable pipeline. The plugin system, batch manager, and observability layer are the three biggest additions — they unlock a category of use cases (long-running digest jobs, custom channel integrations, production monitoring) that weren't possible in v1.
+---
 
-## What's New
+## The 30-Second Version
 
-### Plugin System (entry-point based)
-Drop a new downloader, source, or channel into `pyproject.toml` under `[project.entry-points."builderpulse.*"]` and it shows up in `bp` automatically. Fault-tolerant lazy loading — one bad plugin can't take down the rest.
+```bash
+pip install builderpulse
+bp digest --lang zh --deliver telegram
+```
 
-### Batch Manager + Caching
-Resumable batch jobs with SQLite-backed cache (WAL mode), token-bucket rate limiter, disk-space guard, and concurrency semaphore. Restart mid-batch without re-processing what's already done.
+You get a daily digest of what AI builders are saying — across YouTube, Bilibili, X/Twitter, podcasts, and blogs — delivered to wherever you read.
 
-### Observability
-OpenTelemetry integration with graceful no-op stubs when OTel isn't installed. Tracer, meter, and async context helpers ready to wire into your existing observability stack.
+**Before:** 30+ minutes of opening tabs, copy-pasting links, summarizing in your head.
+**After:** 30 seconds. One command. Delivered.
 
-### MCP Server (8 tools)
-Full JSON-RPC 2.0 server over stdio. Works with Claude Code, Cursor, Continue — any MCP-compatible agent. Tools: `transcribe`, `batch_transcribe`, `digest`, `process`, `fetch_feed`, `list_sources`, `config`, `reload_config`.
+---
 
-### New Sources
+## What's New in v2.0.0
+
+v2 turns BuilderPulse from "two separate scripts" into **one composable pipeline** you can extend.
+
+### 🔌 Plugin System
+Drop a Python file in your project. It shows up in `bp` automatically.
+- Entry-point discovery via `pyproject.toml`
+- Runtime Protocol validation (catches broken plugins before they crash your run)
+- **Fault-tolerant lazy loading** — one bad plugin never breaks the others
+
+### 🚀 Batch Manager
+Resumable batch jobs for transcribing an entire creator's backlog.
+- **SQLite WAL cache** — restart mid-batch without re-processing
+- **Token-bucket rate limiter** — won't get you banned by upstream APIs
+- **Disk-space guard** — pauses gracefully when you're running out of space
+- **Concurrency semaphore** — no fork-bombing your machine
+
+### 🔭 Observability
+OpenTelemetry integration. Tracing, metrics, async context.
+- Zero-config when OTel is installed
+- **No-op stubs when it isn't** — observability is opt-in, never blocking
+
+### 🤖 MCP Server
+Full JSON-RPC 2.0 server over stdio. **6 tools** for AI agents.
+- `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`
+- Works with Claude Code, Cursor, Continue, any MCP client
+- Content-Length capped at 10 MB, sensitive-key access blocked
+
+### 🔐 Reliability
+- 15 typed error codes (no more `Exception: Something went wrong`)
+- Retry with exponential backoff (sync + async), transient-only
+- ConfigManager with hot-reload and thread-safe singleton
+- **Log sanitization** — automatic redaction of API keys in logs
+
+### 📡 New Sources
 - **YouTube channels** via RSS
 - **Bilibili users** with WBI signing
 - **Blog date filtering**
 
-### Reliability
-- Retry with exponential backoff (sync + async), transient-only
-- ConfigManager with thread-safe singleton, hot-reload, file permission checks
-- 15 typed error codes + plugin code registration
-- Log sanitization (auto-redacts sensitive values)
+---
 
-## Upgrade from v1
+## Try It
 
 ```bash
-pip install --upgrade builderpulse
+# Quickest start
+pip install builderpulse
+bp digest --lang zh --deliver telegram
+
+# Or: transcribe one video
+bp transcribe "https://www.bilibili.com/video/BV1xxxx"
+
+# Or: as an MCP tool in Claude Code / Cursor
+bp serve
 ```
 
-**Breaking changes:** none at the CLI level. v1 commands work unchanged. If you import the Python API directly, see [MIGRATION.md](MIGRATION.md).
-
-## Stats
-
-- **449 tests** passing
-- **23 tasks** delivered across 4 sprints
-- **Pure Python** — no Node.js dependency
-- Cross-platform: Windows, macOS, Linux
-
-## Known Limitations
-
-- Faster-whisper tests skip without env+deps (documented in test config)
-- X/Twitter API v2 access requires paid tier ($100/mo); Nitter RSS fallback provided
-
-## Thanks
-
-To everyone who filed issues, tested pre-releases, and contributed feedback during the v2 cycle.
+**Optional extras** (pick what you need):
+```bash
+pip install builderpulse[faster-whisper]    # CPU-friendly transcription
+pip install builderpulse[browser]           # Bilibili/Douyin browser mode
+pip install builderpulse[sources]           # Twitter / blog / podcast
+pip install builderpulse[llm]               # OpenAI / Anthropic / Ollama
+```
 
 ---
 
-**Install:** `pip install builderpulse`
-**Quick start:** `bp digest --lang zh --deliver telegram`
-**Docs:** [README](../README.md) | [中文](../README.zh-CN.md)
+## By the Numbers
+
+| Metric | v1.0.0 | v2.0.0 |
+|:-------|:------:|:------:|
+| Tests | 126 | **449** |
+| Sources | 4 | **6** |
+| MCP tools | 8 (3 placeholders) | **6 (all real)** |
+| Delivery channels | 6 | 8 |
+| Python | 3.9+ | 3.9+ |
+
+---
+
+## Known Limitations
+
+- **X/Twitter API v2** requires paid tier ($100/mo). Nitter RSS fallback provided.
+- **Faster-whisper tests** skip without env+deps (documented in test config).
+- Some CLI flags in older versions have been renamed — see [MIGRATION.md](MIGRATION.md).
+
+---
+
+## What's Next
+
+We're working on v2.1 with **multi-user authentication** and **scheduled digest delivery** (cron-like). If you have feature requests or want to contribute, the issue tracker is open.
+
+---
+
+## License
+
+MIT — see [LICENSE](../LICENSE).
