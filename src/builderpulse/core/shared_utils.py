@@ -70,11 +70,10 @@ def wbi_sign(params: dict, client: httpx.Client) -> dict:
         for k, v in sorted(signed.items())
     }
     query = urllib.parse.urlencode(signed)
-    # MD5 is required by Bilibili's WBI signing protocol. Not a security
-    # weakness here — the signature is per-request, never reused, and the
-    # signed payload contains no secrets. See:
+    # codeql[py/weak-sensitive-data-hashing] - MD5 required by Bilibili's WBI
+    # signing protocol. Per-request, never reused, no secrets in payload.
     # https://socialsisteryi.github.io/bilibili-API-collect/docs/misc/sign/other.html
-    signed["w_rid"] = hashlib.md5((query + mixin_key).encode()).hexdigest()  # codeql[py/weak-sensitive-data-hashing]
+    signed["w_rid"] = hashlib.md5((query + mixin_key).encode()).hexdigest()
     return signed
 
 
