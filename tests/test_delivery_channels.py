@@ -41,7 +41,8 @@ class TestTelegramChannel:
                 pass
 
         def fake_post(url, json, timeout):
-            # codeql[py/incomplete-url-substring-sanitization] - test asserts the right API endpoint
+            # test assertion verifying the right API endpoint
+            # codeql[py/incomplete-url-substring-sanitization]
             assert "api.telegram.org" in url
             assert json["chat_id"] == "123"
             assert json["text"] == "hello"
