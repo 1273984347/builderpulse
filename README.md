@@ -191,7 +191,7 @@ Takes ~25 seconds end-to-end. If something catches my eye, I open the source lin
 I have `bp serve` running as an MCP tool in Claude Code. When I'm coding and want to know "what did [builder] ship this week?" I just ask:
 
 ```
-> fetch this week's bilibili videos from Three-Body-Builder and summarize the top one
+> fetch this week's bilibili videos from the creator I'm tracking and summarize the top one
 ```
 
 Claude Code calls `bp_fetch_feed` → `bp_digest` → returns a one-paragraph summary inline. No context switch, no copy-paste.
