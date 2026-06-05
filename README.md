@@ -54,6 +54,164 @@ bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
 bp serve
 ```
 
+---
+
+## How to Use BuilderPulse
+
+BuilderPulse has **4 ways** to use it, each suited to a different situation. Pick the one that fits.
+
+### 1. 💻 CLI — for ad-hoc commands and scheduled jobs
+
+**Use this when:** you want a quick command, a cron job, or a one-off task. No setup beyond `pip install`.
+
+#### Daily morning digest (the killer use case)
+
+```bash
+bp digest --lang zh --deliver telegram
+# → fetches from all sources, summarizes with your LLM, sends to Telegram
+# Takes ~30 seconds. Done.
+```
+
+Schedule it with `cron` / `Task Scheduler` to fire at 8am daily. See [docs/scheduling.md](docs/scheduling.md) for examples.
+
+#### Transcribe a single video you just found
+
+```bash
+bp transcribe "https://www.bilibili.com/video/BV1xxxx" --engine faster-whisper
+# → downloads, transcribes (if needed), saves markdown to ./output/
+```
+
+#### Catch up on a creator's backlog (resumable)
+
+```bash
+bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
+# → processes 20 videos. Kill it (Ctrl+C) and restart — picks up where it stopped.
+# SQLite cache means you never re-process the same URL.
+```
+
+#### Inspect or change config
+
+```bash
+bp config show                    # see all settings (secrets masked)
+bp config init                    # write a starter config.json
+```
+
+---
+
+### 2. 🤖 MCP Server — for AI agents (Claude Code, Cursor, etc.)
+
+**Use this when:** you want your AI agent to do the fetching / transcribing / summarizing for you, conversationally.
+
+#### Setup in Claude Code (`~/.claude.json` or `.mcp.json`)
+
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+Restart Claude Code. You'll see 6 new tools: `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`.
+
+#### What it looks like in conversation
+
+```
+You:    "Give me yesterday's AI builder digest, in Chinese, send to my Telegram"
+Agent:  [calls bp_digest] → ✓ delivered
+```
+
+#### Setup in Cursor / Continue / Windsurf
+
+Same JSON config. The `bp serve` subprocess speaks JSON-RPC 2.0 over stdio, which all MCP clients understand.
+
+---
+
+### 3. 🐍 Python API — for embedding in your own code
+
+**Use this when:** you're building a custom tool, dashboard, or automation that needs the pieces of BuilderPulse without the CLI/MCP layer.
+
+```python
+from builderpulse.sources.youtube import YouTubeSource
+from builderpulse.remix.summarizer import Summarizer
+from builderpulse.deliver import get_channel
+
+# Fetch from a source
+src = YouTubeSource()
+items = src.fetch(limit=10, days=7)
+
+# Summarize
+summarizer = Summarizer(llm="claude")  # or "openai", "ollama"
+for item in items:
+    item.summary = summarizer.summarize(item.content)
+
+# Deliver
+ch = get_channel("telegram")
+ch.send(format_digest(items), title="My Daily Digest")
+```
+
+Each piece (`sources/`, `remix/`, `deliver/`) is independently importable. See [docs/api.md](docs/api.md) for the full surface.
+
+---
+
+### 4. 🔌 Plugin System — to add your own source / channel
+
+**Use this when:** the 6 built-in sources or 8 built-in channels don't cover what you need.
+
+Drop a Python file with an entry-point in your `pyproject.toml`:
+
+```toml
+[project.entry-points."builderpulse.sources"]
+my_custom_source = "my_pkg.source:MySource"
+```
+
+Your class just needs to satisfy a `Protocol` (a `fetch` method for sources, `deliver` method for channels). It shows up in `bp fetch` / `bp digest` / `bp serve` automatically. See [docs/plugins.md](docs/plugins.md) for the full contract.
+
+---
+
+### 5. ✨ Your use case (tell us!)
+
+<!-- TODO: replace this with a real workflow from your daily life.
+     2-3 sentences + a code/command example. The most useful thing
+     in any README is what the AUTHOR actually does with it.
+     Format: "I use BuilderPulse for [X]. Here's how: [code/cmd]." -->
+
+_I use BuilderPulse for ________________. Here's how: ..._
+
+Open a PR or an issue to share — best community contributions come from real workflows.
+
+---
+
+## Choosing the Right Method
+
+| Situation | Use |
+|:----------|:----|
+| "I just want today's digest in my Telegram" | **CLI** (`bp digest`) |
+| "I want it every morning at 8am automatically" | **CLI** + cron / Task Scheduler |
+| "My AI agent should do this for me" | **MCP** (Claude Code / Cursor) |
+| "I'm building a custom tool on top" | **Python API** |
+| "I need a new source / channel" | **Plugin** |
+| "I'm catching up on 100 videos" | **CLI** (`bp batch`, resumable) |
+
+---
+
+## How a Typical Pipeline Runs
+
+```
+[Source] → [Downloader] → [Transcriber] → [Summarizer] → [Channel]
+   ↓            ↓              ↓                ↓             ↓
+ YouTube      yt-dlp       faster-whisper    Claude       Telegram
+ Bilibili     API+playwright  WhisperX        GPT-4        Email
+ Podcasts     RSS+asr       OpenAI Whisper    Ollama       Discord
+ Blogs        html scrape
+ Twitter      API v2 / Nitter
+```
+
+Each stage is independent. If a stage fails, the error is captured with a typed code and the pipeline continues. See [docs/error-codes.md](docs/error-codes.md).
+
 ## Installation
 
 ```bash
@@ -136,16 +294,18 @@ Or use the skill: `/builderpulse`
 
 ## MCP Tools
 
+The MCP server exposes **6 tools** over JSON-RPC 2.0:
+
 | Tool | Description |
 |:-----|:------------|
-| `bp_transcribe` | Transcribe video/audio URL to text |
-| `bp_batch_transcribe` | Batch transcribe creator's videos |
-| `bp_digest` | Generate AI builder digest |
-| `bp_process` | End-to-end pipeline |
-| `bp_fetch_feed` | Fetch raw content from source |
-| `bp_list_sources` | List configured sources |
-| `bp_config` | View/modify config (secrets masked) |
-| `bp_reload_config` | Hot-reload config |
+| `bp_transcribe` | Transcribe a video/audio URL to text |
+| `bp_digest` | Generate a multi-source AI builder digest |
+| `bp_process` | End-to-end pipeline (download → transcribe → summarize → deliver) |
+| `bp_fetch_feed` | Fetch raw content from one source (podcast / blog / twitter / bilibili / youtube) |
+| `bp_list_sources` | List all configured content sources and delivery channels |
+| `bp_config` | View configuration (secrets masked; sensitive keys blocked) |
+
+See [How to Use → MCP Server](#2-🤖-mcp-server--for-ai-agents-claude-code-cursor-etc) above for setup.
 
 ## CLI Commands
 
@@ -156,9 +316,8 @@ bp digest --sources podcast,blog # Generate digest
 bp fetch bilibili --user <mid>   # Fetch raw content
 bp process <url> --summarize     # End-to-end pipeline
 bp clean                         # Clean old output files
-bp config show                   # Show configuration
-bp config set <key> <value>      # Set config value
-bp config reload                 # Hot-reload config
+bp config show                   # Show configuration (secrets masked)
+bp config init                   # Write a starter config.json
 bp serve                         # Start MCP server
 ```
 
@@ -197,13 +356,14 @@ builderpulse/
 
 ## Stats
 
-- **90+ files** / 12,000+ lines of Python
+- **63 source files** / 6,309 lines of Python (plus 4,695 lines of tests)
 - **449 tests** passing
-- **8 MCP tools** for AI agent integration
+- **6 MCP tools** for AI agent integration (no placeholders — all functional)
 - **8 delivery channels** (Telegram, Lark, DingTalk, Discord, Email, WeChat, WeCom, stderr)
-- **5 content sources** (X/Twitter, Podcasts, Blogs, Bilibili, YouTube)
+- **6 content sources** (YouTube, Bilibili, X/Twitter, Podcasts, Blogs, Douyin)
 - **3 transcription engines** (Whisper, WhisperX, faster-whisper)
 - **Zero Node.js dependency** — pure Python
+- **MIT licensed**
 
 ## Documentation
 
