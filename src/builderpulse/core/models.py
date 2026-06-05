@@ -37,7 +37,9 @@ class SourceRef:
     def from_url(cls, url: str, title: Optional[str] = None) -> SourceRef:
         """Auto-detect source type from URL and extract native ID."""
         parsed = urlparse(url)
-        host = parsed.netloc.lower()
+        # Use hostname (not netloc) so URLs with embedded credentials
+        # like https://user:pass@bilibili.com/... still match on the bare host.
+        host = (parsed.hostname or "").lower()
         path = parsed.path
 
         # YouTube
@@ -54,8 +56,8 @@ class SourceRef:
                 title=title,
             )
 
-        # Bilibili
-        if "bilibili.com" in host:
+        # Bilibili (exact host or subdomain — avoids bilibili.com.evil.com bypass)
+        if host == "bilibili.com" or host.endswith(".bilibili.com"):
             m = _BILI_RE.search(url)
             native_id = m.group(0) if m else make_idem_key_from_url(url)
             return cls(
@@ -65,8 +67,8 @@ class SourceRef:
                 title=title,
             )
 
-        # Douyin
-        if "douyin.com" in host:
+        # Douyin (exact host or subdomain — avoids douyin.com.evil.com bypass)
+        if host == "douyin.com" or host.endswith(".douyin.com"):
             return cls(
                 source_type="douyin",
                 native_id=make_idem_key_from_url(url),

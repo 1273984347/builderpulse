@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from builderpulse.core.models import SourceRef, DownloadResult
 from .base import Downloader
@@ -40,7 +41,12 @@ class DouyinDownloader(Downloader):
                 # Intercept network requests to capture media URLs
                 def handle_response(response) -> None:
                     url = response.url
-                    if "douyinvod.com" in url and (".mp4" in url or ".m4a" in url):
+                    # Parse the URL to get exact netloc — avoids
+                    # 'douyinvod.com.evil.com/path.mp4' bypass of substring check.
+                    parsed = urlparse(url)
+                    netloc = parsed.netloc
+                    if (netloc == "douyinvod.com" or netloc.endswith(".douyinvod.com")) \
+                            and (url.lower().endswith(".mp4") or url.lower().endswith(".m4a")):
                         media_urls.append(url)
 
                 page.on("response", handle_response)

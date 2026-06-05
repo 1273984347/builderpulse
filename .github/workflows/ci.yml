@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master, main]
 
+# CodeQL: principle of least privilege — only read repo contents.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}

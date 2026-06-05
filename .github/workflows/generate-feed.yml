@@ -9,6 +9,10 @@ on:
         type: choice
         options: [all, twitter, podcast, blog]
 
+# CodeQL: principle of least privilege — only read repo contents.
+permissions:
+  contents: read
+
 jobs:
   update:
     runs-on: ubuntu-latest

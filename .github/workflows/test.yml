@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [main]
 
+# CodeQL: principle of least privilege — only read repo contents.
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
