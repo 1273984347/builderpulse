@@ -89,7 +89,7 @@ def run_mcp_server() -> None:
                 response = _make_response(request_id, {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "builderpulse", "version": "1.0.0"},
+                    "serverInfo": {"name": "builderpulse", "version": "2.0.0"},
                 })
             elif method == "notifications/initialized":
                 continue
