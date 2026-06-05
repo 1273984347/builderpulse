@@ -172,16 +172,52 @@ Your class just needs to satisfy a `Protocol` (a `fetch` method for sources, `de
 
 ---
 
-### 5. ✨ Your use case (tell us!)
+### 5. ✨ Use cases from the author
 
-<!-- TODO: replace this with a real workflow from your daily life.
-     2-3 sentences + a code/command example. The most useful thing
-     in any README is what the AUTHOR actually does with it.
-     Format: "I use BuilderPulse for [X]. Here's how: [code/cmd]." -->
+These are the three ways I actually use BuilderPulse day-to-day. They cover roughly 95% of my usage.
 
-_I use BuilderPulse for ________________. Here's how: ..._
+#### 🌅 Daily morning digest (the daily driver)
 
-Open a PR or an issue to share — best community contributions come from real workflows.
+Every weekday at 8:05am, Task Scheduler fires `bp digest` on my home Windows box. The result lands in my Telegram while I'm having coffee. I read it on the train.
+
+```cmd
+schtasks /create /tn "BuilderPulse Morning" /tr "bp digest --lang zh --sources podcast,youtube,bilibili,blog --deliver telegram" /sc daily /st 08:05
+```
+
+Takes ~25 seconds end-to-end. If something catches my eye, I open the source link directly from the Telegram message.
+
+#### 🤖 Inside Claude Code (when working)
+
+I have `bp serve` running as an MCP tool in Claude Code. When I'm coding and want to know "what did [builder] ship this week?" I just ask:
+
+```
+> fetch this week's bilibili videos from Three-Body-Builder and summarize the top one
+```
+
+Claude Code calls `bp_fetch_feed` → `bp_digest` → returns a one-paragraph summary inline. No context switch, no copy-paste.
+
+```json
+// ~/.claude.json
+{
+  "mcpServers": {
+    "builderpulse": { "command": "bp", "args": ["serve"] }
+  }
+}
+```
+
+#### 📚 Saturday backlog catchup (resumable batch)
+
+Saturday morning, second coffee. I run `bp batch` on a creator I'm behind on:
+
+```bash
+bp batch "https://space.bilibili.com/123456" --limit 30 --summarize --engine faster-whisper
+```
+
+It processes 30 videos. If my Saturday plans interrupt, I `Ctrl+C`. Next Saturday, I re-run — it picks up at video 14 from the SQLite cache, doesn't re-download. `--engine faster-whisper` means no GPU needed, runs fine on CPU.
+
+---
+
+**What about you?** Open an issue or PR to share your use case — the best documentation comes from real workflows.
 
 ---
 
