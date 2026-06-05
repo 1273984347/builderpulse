@@ -139,19 +139,6 @@ TOOLS = [
         },
     },
     {
-        "name": "bp_batch_transcribe",
-        "description": "Batch transcribe a creator's videos (B站/抖音).",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "user_url": {"type": "string", "description": "Creator profile URL"},
-                "limit": {"type": "integer", "default": 50},
-                "language": {"type": "string", "default": "auto"},
-            },
-            "required": ["user_url"],
-        },
-    },
-    {
         "name": "bp_digest",
         "description": "Generate AI builder digest. Aggregates X/Twitter, podcasts, blogs, Bilibili.",
         "inputSchema": {
@@ -197,21 +184,15 @@ TOOLS = [
     },
     {
         "name": "bp_config",
-        "description": "View or modify BuilderPulse configuration.",
+        "description": "View BuilderPulse configuration. Sensitive keys are masked.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["get", "set", "show"]},
+                "action": {"type": "string", "enum": ["get", "show"]},
                 "key": {"type": "string"},
-                "value": {"type": "string"},
             },
             "required": ["action"],
         },
-    },
-    {
-        "name": "bp_reload_config",
-        "description": "Hot-reload config.json without restarting MCP server.",
-        "inputSchema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -221,13 +202,11 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
     """Dispatch tool call to appropriate handler."""
     handlers = {
         "bp_transcribe": _handle_transcribe,
-        "bp_batch_transcribe": _handle_batch_transcribe,
         "bp_digest": _handle_digest,
         "bp_process": _handle_process,
         "bp_fetch_feed": _handle_fetch_feed,
         "bp_list_sources": _handle_list_sources,
         "bp_config": _handle_config,
-        "bp_reload_config": _handle_reload_config,
     }
 
     handler = handlers.get(tool_name)
@@ -269,9 +248,6 @@ def _handle_transcribe(url: str, engine: str = "auto", language: str = "auto", o
         "engine": ctx.transcript.engine,
         "word_count": ctx.transcript.word_count,
     }
-
-def _handle_batch_transcribe(user_url: str, limit: int = 50, language: str = "auto") -> dict:
-    return {"status": "not_implemented", "message": "Batch transcribe not yet implemented"}
 
 def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None) -> dict:
     from builderpulse.core.config_manager import ConfigManager
@@ -389,10 +365,10 @@ def _handle_config(action: str, key: str = None, value: str = None) -> dict:
         if Config._is_sensitive(key):
             return {"error": f"Key '{key}' is sensitive. Use 'show' with mask_secrets=True."}
         return {"key": key, "value": getattr(cfg, key, None)}
-    elif action == "set" and key and value:
-        return {"status": "set", "key": key, "message": "Config set not yet persistent"}
+    elif action == "set":
+        return {
+            "error": "Config 'set' not supported in MCP. "
+                     "Use environment variables (BUILDERPULSE_*) or edit config.json directly."
+        }
     else:
-        return {"error": "Invalid config action"}
-
-def _handle_reload_config() -> dict:
-    return {"status": "auto", "message": "Config is auto-reloaded on each request. No manual reload needed."}
+        return {"error": "Invalid config action. Valid actions: get, show."}
