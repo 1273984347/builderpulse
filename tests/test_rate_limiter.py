@@ -1,4 +1,5 @@
 """Tests for builderpulse.batch.rate_limiter — RateLimiter."""
+
 from __future__ import annotations
 
 import asyncio

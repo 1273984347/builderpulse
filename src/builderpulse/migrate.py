@@ -1,4 +1,5 @@
 """Migration from follow-builders and video2text to BuilderPulse."""
+
 from __future__ import annotations
 
 import json
@@ -67,7 +68,9 @@ def migrate_follow_builders(state: State, source_dir: Path | str | None = None) 
 
 def migrate_video2text(state: State, source_dir: Path | str | None = None) -> dict:
     """Migrate from video2text output/ to BuilderPulse state.db."""
-    source_dir = Path(source_dir) if source_dir else Path.home() / ".builderpulse" / "output"
+    source_dir = (
+        Path(source_dir) if source_dir else Path.home() / ".builderpulse" / "output"
+    )
     transcripts_dir = source_dir / "transcripts"
 
     if not transcripts_dir.exists():

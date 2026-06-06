@@ -1,11 +1,11 @@
 """Tests for builderpulse.infra.agent_output."""
+
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
 from builderpulse.infra.agent_output import AgentOutput
 

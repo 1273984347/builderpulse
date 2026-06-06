@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Optional
 
@@ -17,14 +17,16 @@ from typing import Optional
 
 _DEFAULT_WORKSPACE = Path.home() / ".builderpulse" / "output"
 
-SENSITIVE_KEYS = frozenset({
-    "botToken",
-    "apiKey",
-    "apiSecret",
-    "sessdata",
-    "password",
-    "secret",
-})
+SENSITIVE_KEYS = frozenset(
+    {
+        "botToken",
+        "apiKey",
+        "apiSecret",
+        "sessdata",
+        "password",
+        "secret",
+    }
+)
 
 # Mapping from field name → env var name
 _ENV_PREFIX = "BUILDERPULSE_"
@@ -107,6 +109,7 @@ class Config:
             if env_val is not None:
                 # P1 fix: resolve string annotations to actual types
                 import typing
+
                 try:
                     hints = typing.get_type_hints(type(self))
                     fld_type = hints.get(fld.name, str)

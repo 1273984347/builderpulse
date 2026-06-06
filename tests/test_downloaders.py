@@ -1,4 +1,5 @@
 """Tests for downloader base."""
+
 from pathlib import Path
 
 from builderpulse.core.models import SourceRef, DownloadResult
@@ -47,14 +48,19 @@ def test_download():
 
 def test_ytdlp_can_handle():
     from builderpulse.engines.downloaders.yt_dlp import YtDlpDownloader
+
     dl = YtDlpDownloader()
     assert dl.name == "yt-dlp"
 
-    yt = SourceRef(source_type="youtube", native_id="abc", url="https://youtube.com/watch?v=abc")
+    yt = SourceRef(
+        source_type="youtube", native_id="abc", url="https://youtube.com/watch?v=abc"
+    )
     assert dl.can_handle(yt)
 
     local = SourceRef(source_type="local", native_id="/f", url="/f.mp4")
     assert dl.can_handle(local)
 
-    douyin = SourceRef(source_type="douyin", native_id="abc", url="https://douyin.com/abc")
+    douyin = SourceRef(
+        source_type="douyin", native_id="abc", url="https://douyin.com/abc"
+    )
     assert not dl.can_handle(douyin)

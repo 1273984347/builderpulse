@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sqlite3
 import threading
 import uuid
@@ -201,7 +200,7 @@ class State:
     @property
     def _conn(self) -> sqlite3.Connection:
         """Return a per-thread SQLite connection, creating it on first access."""
-        if not hasattr(self._conn_local, 'conn') or self._conn_local.conn is None:
+        if not hasattr(self._conn_local, "conn") or self._conn_local.conn is None:
             conn = sqlite3.connect(
                 self._db_path_str,
                 isolation_level=None,
@@ -220,7 +219,8 @@ class State:
         if current_version >= _SCHEMA_VERSION:
             return
 
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS processed_items (
                 idem_key    TEXT PRIMARY KEY,
                 source_type TEXT NOT NULL,
@@ -278,7 +278,9 @@ class State:
             );
 
             PRAGMA user_version = %d;
-        """ % _SCHEMA_VERSION)
+        """
+            % _SCHEMA_VERSION
+        )
 
     # ── Advisory lock ─────────────────────────────────────────────────
 
@@ -292,20 +294,24 @@ class State:
         try:
             if sys.platform == "win32":
                 import msvcrt
+
                 msvcrt.locking(fd.fileno(), msvcrt.LK_LOCK, 1)
             else:
                 import fcntl
+
                 fcntl.flock(fd, fcntl.LOCK_EX)
             yield
         finally:
             if sys.platform == "win32":
                 import msvcrt
+
                 try:
                     msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
                 except OSError:
                     pass
             else:
                 import fcntl
+
                 fcntl.flock(fd, fcntl.LOCK_UN)
             fd.close()
 
@@ -339,7 +345,9 @@ class State:
     ) -> bool:
         """Insert or update a processed item. Returns True if actually inserted (not duplicate)."""
         if status not in VALID_STATUSES:
-            raise ValueError(f"Invalid status: {status}. Must be one of {VALID_STATUSES}")
+            raise ValueError(
+                f"Invalid status: {status}. Must be one of {VALID_STATUSES}"
+            )
 
         now = _utcnow_str()
         with self._lock():
@@ -353,8 +361,17 @@ class State:
                      output_path, error, attempts, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
-                (idem_key, source_type, source_id, url, status,
-                 output_path, error, now, now),
+                (
+                    idem_key,
+                    source_type,
+                    source_id,
+                    url,
+                    status,
+                    output_path,
+                    error,
+                    now,
+                    now,
+                ),
             )
             inserted = cur.rowcount > 0
             if not inserted:
@@ -463,7 +480,9 @@ class State:
         for row in rows:
             item = Item(**dict(row))
             updated = datetime.fromisoformat(item.updated_at)
-            backoff = BACKOFF_INTERVALS[min(item.attempts - 1, len(BACKOFF_INTERVALS) - 1)]
+            backoff = BACKOFF_INTERVALS[
+                min(item.attempts - 1, len(BACKOFF_INTERVALS) - 1)
+            ]
             if (now - updated).total_seconds() >= backoff:
                 retryable.append(item)
         return retryable
@@ -644,9 +663,15 @@ class State:
         ).fetchall()
         by_status = {row["status"]: row["cnt"] for row in rows}
 
-        cursor_count = self._conn.execute("SELECT COUNT(*) FROM feed_cursors").fetchone()[0]
-        delivery_count = self._conn.execute("SELECT COUNT(*) FROM delivery_log").fetchone()[0]
-        batch_count = self._conn.execute("SELECT COUNT(*) FROM batch_runs").fetchone()[0]
+        cursor_count = self._conn.execute(
+            "SELECT COUNT(*) FROM feed_cursors"
+        ).fetchone()[0]
+        delivery_count = self._conn.execute(
+            "SELECT COUNT(*) FROM delivery_log"
+        ).fetchone()[0]
+        batch_count = self._conn.execute("SELECT COUNT(*) FROM batch_runs").fetchone()[
+            0
+        ]
 
         return {
             "items": by_status,
@@ -684,7 +709,7 @@ class State:
     # ── Context manager ───────────────────────────────────────────────
 
     def close(self) -> None:
-        if hasattr(self._conn_local, 'conn') and self._conn_local.conn is not None:
+        if hasattr(self._conn_local, "conn") and self._conn_local.conn is not None:
             self._conn_local.conn.close()
             self._conn_local.conn = None
 

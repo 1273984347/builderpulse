@@ -1,8 +1,8 @@
 """Douyin video downloader using Playwright to intercept media URLs."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 from builderpulse.core.models import SourceRef, DownloadResult
@@ -45,8 +45,11 @@ class DouyinDownloader(Downloader):
                     # 'douyinvod.com.evil.com/path.mp4' bypass of substring check.
                     parsed = urlparse(url)
                     netloc = parsed.netloc
-                    if (netloc == "douyinvod.com" or netloc.endswith(".douyinvod.com")) \
-                            and (url.lower().endswith(".mp4") or url.lower().endswith(".m4a")):
+                    if (
+                        netloc == "douyinvod.com" or netloc.endswith(".douyinvod.com")
+                    ) and (
+                        url.lower().endswith(".mp4") or url.lower().endswith(".m4a")
+                    ):
                         media_urls.append(url)
 
                 page.on("response", handle_response)

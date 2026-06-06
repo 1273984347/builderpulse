@@ -12,11 +12,11 @@ is needed.
     each thread should call ``cache.close()`` (or ``cache.close_thread()``
     which is an alias) before the thread exits.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sqlite3
 import threading
 import weakref
@@ -89,10 +89,14 @@ class BatchCache:
 
     def get(self, url: str) -> Optional[Dict[str, Any]]:
         """Lookup by SHA256(url). Returns dict or None."""
-        row = self._get_conn().execute(
-            "SELECT * FROM cache WHERE url_hash = ?",
-            (self._hash_url(url),),
-        ).fetchone()
+        row = (
+            self._get_conn()
+            .execute(
+                "SELECT * FROM cache WHERE url_hash = ?",
+                (self._hash_url(url),),
+            )
+            .fetchone()
+        )
         if row is None:
             return None
         d = dict(row)

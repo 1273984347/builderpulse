@@ -7,6 +7,7 @@ Eliminates duplication between the CLI ``digest`` command and the MCP
 The aggregator only deals with *fetch* — it does not deliver, summarise,
 or render. Callers own those concerns.
 """
+
 from __future__ import annotations
 
 from typing import Any, Iterable, List, Optional, Tuple
@@ -84,31 +85,46 @@ def fetch_all_sources(
 
     if _want("podcast"):
         items, errors = _safe_fetch(
-            items, errors, "podcast", skip_failed,
+            items,
+            errors,
+            "podcast",
+            skip_failed,
             lambda: _fetch_podcast(sources_cfg, days=days),
         )
 
     if _want("twitter"):
         items, errors = _safe_fetch(
-            items, errors, "twitter", skip_failed,
+            items,
+            errors,
+            "twitter",
+            skip_failed,
             lambda: _fetch_twitter(sources_cfg),
         )
 
     if _want("blog"):
         items, errors = _safe_fetch(
-            items, errors, "blog", skip_failed,
+            items,
+            errors,
+            "blog",
+            skip_failed,
             lambda: _fetch_blog(sources_cfg, days=days),
         )
 
     if _want("bilibili"):
         items, errors = _safe_fetch(
-            items, errors, "bilibili", skip_failed,
+            items,
+            errors,
+            "bilibili",
+            skip_failed,
             lambda: _fetch_bilibili(sources_cfg),
         )
 
     if _want("youtube"):
         items, errors = _safe_fetch(
-            items, errors, "youtube", skip_failed,
+            items,
+            errors,
+            "youtube",
+            skip_failed,
             lambda: _fetch_youtube(sources_cfg),
         )
 

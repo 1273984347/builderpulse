@@ -1,8 +1,8 @@
 """Bilibili video downloader with WBI signing."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -98,7 +98,7 @@ class BilibiliDownloader(Downloader):
         headers: dict[str, str] = {}
         if self.sessdata:
             # P1 fix: validate SESSDATA doesn't contain injection chars
-            if ';' in self.sessdata or '\n' in self.sessdata or '\r' in self.sessdata:
+            if ";" in self.sessdata or "\n" in self.sessdata or "\r" in self.sessdata:
                 raise ValueError("SESSDATA contains invalid characters")
             headers["Cookie"] = f"SESSDATA={self.sessdata}"
 

@@ -1,4 +1,5 @@
 """Blog content scraper using httpx + BeautifulSoup."""
+
 from __future__ import annotations
 
 import functools
@@ -24,6 +25,7 @@ def _parse_date_utc(date_str: str) -> Optional[datetime]:
         return None
     try:
         from dateutil.parser import parse as dateutil_parse
+
         dt = dateutil_parse(date_str)
     except (ValueError, OverflowError, TypeError):
         return None
@@ -67,9 +69,9 @@ class BlogSource:
         cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
         # Try to extract articles from common blog patterns
-        articles = soup.find_all(
-            "article"
-        ) or soup.find_all("div", class_=re.compile(r"post|article|entry"))
+        articles = soup.find_all("article") or soup.find_all(
+            "div", class_=re.compile(r"post|article|entry")
+        )
 
         if not articles:
             # Fallback: extract all links with text
@@ -110,9 +112,9 @@ class BlogSource:
             link = urljoin(base_url, link)
 
         # Find content/summary
-        content_el = article.find(
-            "p"
-        ) or article.find("div", class_=re.compile(r"summary|excerpt|desc"))
+        content_el = article.find("p") or article.find(
+            "div", class_=re.compile(r"summary|excerpt|desc")
+        )
         content = content_el.get_text(strip=True) if content_el else ""
 
         # Find published date
@@ -144,9 +146,7 @@ class BlogSource:
             return meta["content"]
         return None
 
-    def _extract_links(
-        self, soup, base_url: str, limit: int
-    ) -> list[FeedItem]:
+    def _extract_links(self, soup, base_url: str, limit: int) -> list[FeedItem]:
         """Fallback: extract blog-like links."""
         from urllib.parse import urljoin
 

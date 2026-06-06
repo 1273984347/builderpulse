@@ -1,4 +1,5 @@
 """Tests for migration."""
+
 import json
 
 from builderpulse.core.state import State
@@ -11,11 +12,15 @@ def test_migrate_follow_builders(tmp_path):
     fb_dir = tmp_path / "follow-builders"
     fb_dir.mkdir()
     state_file = fb_dir / "state.json"
-    state_file.write_text(json.dumps({
-        "seenTweets": {"12345": 1700000000000, "67890": 1700000001000},
-        "seenArticles": {"https://example.com/post1": 1700000002000},
-        "seenVideos": {"guid-abc-123": 1700000003000},
-    }))
+    state_file.write_text(
+        json.dumps(
+            {
+                "seenTweets": {"12345": 1700000000000, "67890": 1700000001000},
+                "seenArticles": {"https://example.com/post1": 1700000002000},
+                "seenVideos": {"guid-abc-123": 1700000003000},
+            }
+        )
+    )
 
     db_path = tmp_path / "state.db"
     state = State(db_path=db_path)
@@ -60,7 +65,9 @@ def test_migrate_idempotent(tmp_path):
     """Running migration twice should not duplicate entries."""
     fb_dir = tmp_path / "fb"
     fb_dir.mkdir()
-    (fb_dir / "state.json").write_text(json.dumps({"seenTweets": {"111": 1700000000000}}))
+    (fb_dir / "state.json").write_text(
+        json.dumps({"seenTweets": {"111": 1700000000000}})
+    )
 
     db_path = tmp_path / "state.db"
     state = State(db_path=db_path)

@@ -1,4 +1,5 @@
 """Tests for delivery channels."""
+
 from builderpulse.deliver import get_channel, list_channels
 from builderpulse.deliver.base import DeliveryChannel
 
@@ -17,6 +18,7 @@ def test_get_channel():
 
 def test_get_channel_unknown():
     import pytest
+
     with pytest.raises(ValueError):
         get_channel("nonexistent")
 

@@ -1,4 +1,5 @@
 """Prompt template loader with custom > builtin priority."""
+
 from __future__ import annotations
 
 import importlib.resources
@@ -48,6 +49,7 @@ def _find_builtin_prompts() -> Path:
 
 _BUILTIN_DIR = _find_builtin_prompts()
 
+
 def load_prompt(name: str, custom_dir: str | Path | None = None) -> str:
     """Load a prompt template. Custom dir overrides builtin."""
     if custom_dir:
@@ -60,6 +62,7 @@ def load_prompt(name: str, custom_dir: str | Path | None = None) -> str:
         return builtin_path.read_text(encoding="utf-8")
 
     raise FileNotFoundError(f"Prompt template not found: {name}")
+
 
 def list_prompts(custom_dir: str | Path | None = None) -> list[str]:
     """List available prompt names."""

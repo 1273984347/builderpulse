@@ -1,9 +1,9 @@
 """Tests for builderpulse.infra.performance."""
+
 from __future__ import annotations
 
 import asyncio
 import time
-from pathlib import Path
 
 import pytest
 
@@ -22,6 +22,7 @@ from builderpulse.infra.performance import (
 # ---------------------------------------------------------------------------
 # profile_step
 # ---------------------------------------------------------------------------
+
 
 class TestProfileStep:
     def teardown_method(self):
@@ -77,6 +78,7 @@ class TestProfileStep:
 # PerformanceReport
 # ---------------------------------------------------------------------------
 
+
 class TestPerformanceReport:
     def setup_method(self):
         STEP_TIMES.clear()
@@ -116,6 +118,7 @@ class TestPerformanceReport:
 # parallel_map
 # ---------------------------------------------------------------------------
 
+
 def _inc(x):
     return x + 1
 
@@ -138,6 +141,7 @@ class TestParallelMap:
 # parallel_map_async
 # ---------------------------------------------------------------------------
 
+
 class TestParallelMapAsync:
     def test_async_basic(self):
         async def double(x):
@@ -157,6 +161,7 @@ class TestParallelMapAsync:
 # ---------------------------------------------------------------------------
 # parallel_map_async_safe
 # ---------------------------------------------------------------------------
+
 
 class TestParallelMapAsyncSafe:
     def test_all_success(self):
@@ -184,6 +189,7 @@ class TestParallelMapAsyncSafe:
 # _verify_picklable
 # ---------------------------------------------------------------------------
 
+
 class TestVerifyPicklable:
     def test_picklable_object(self):
         _verify_picklable(42)  # should not raise
@@ -192,6 +198,7 @@ class TestVerifyPicklable:
 
     def test_unpicklable_raises(self):
         import threading
+
         lock = threading.Lock()
         with pytest.raises(TypeError):
             _verify_picklable(lock)
@@ -200,6 +207,7 @@ class TestVerifyPicklable:
 # ---------------------------------------------------------------------------
 # DownloadCache
 # ---------------------------------------------------------------------------
+
 
 class TestDownloadCache:
     def test_cache_hit(self):

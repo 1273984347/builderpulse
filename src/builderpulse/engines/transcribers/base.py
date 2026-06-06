@@ -1,4 +1,5 @@
 """Abstract base class for transcribers."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,7 +11,9 @@ from builderpulse.core.models import TranscriptResult
 
 class Transcriber(ABC):
     @abstractmethod
-    def transcribe(self, audio_path: Path, language: Optional[str] = None) -> TranscriptResult:
+    def transcribe(
+        self, audio_path: Path, language: Optional[str] = None
+    ) -> TranscriptResult:
         """Transcribe audio file to text."""
         ...
 

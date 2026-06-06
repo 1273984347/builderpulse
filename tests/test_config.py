@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-import pytest
 
-from builderpulse.core.config import Config, SENSITIVE_KEYS
+from builderpulse.core.config import Config
 
 
 # ── test_default_config ────────────────────────────────────────────────
@@ -30,12 +28,16 @@ def test_default_config():
 def test_load_from_file(tmp_path: Path):
     """Config.from_file() should load JSON and populate fields."""
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps({
-        "language": "zh",
-        "engine": "whisperx",
-        "model": "large",
-        "device": "cuda",
-    }))
+    config_file.write_text(
+        json.dumps(
+            {
+                "language": "zh",
+                "engine": "whisperx",
+                "model": "large",
+                "device": "cuda",
+            }
+        )
+    )
 
     cfg = Config.from_file(config_file)
     assert cfg.language == "zh"

@@ -1,8 +1,8 @@
 """YouTube content source via RSS feeds."""
+
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -22,6 +22,7 @@ class YouTubeSource:
         items = []
         for ch in self.channels:
             import feedparser
+
             ch_id = ch.get("id")
             ch_name = ch.get("name", ch_id)
             try:

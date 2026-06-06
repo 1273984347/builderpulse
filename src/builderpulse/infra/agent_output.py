@@ -1,4 +1,5 @@
 """Structured agent output model with auto-sanitization and MCP helpers."""
+
 from __future__ import annotations
 
 import json

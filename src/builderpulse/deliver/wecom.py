@@ -1,4 +1,5 @@
 """WeCom (Enterprise WeChat) delivery channel."""
+
 from __future__ import annotations
 
 from .base import DeliveryChannel
@@ -17,7 +18,7 @@ class WeComChannel(DeliveryChannel):
 
         if not self.webhook_url:
             raise ValueError("webhook_url required")
-        payload = {"msgtype": "text", "text": {"content": content[:self.max_length]}}
+        payload = {"msgtype": "text", "text": {"content": content[: self.max_length]}}
         r = httpx.post(self.webhook_url, json=payload, timeout=10)
         r.raise_for_status()
         return True

@@ -1,11 +1,10 @@
 """Tests for builderpulse.batch.cache — SQLite BatchCache."""
+
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 
-import pytest
 
 from builderpulse.batch.cache import BatchCache
 
@@ -30,7 +29,9 @@ class TestBatchCacheCRUD:
     def test_set_with_error(self, tmp_path: Path) -> None:
         db = tmp_path / "cache.db"
         with BatchCache(db) as cache:
-            cache.set("https://example.com/fail", "failed", error_code="DOWNLOAD_FAILED")
+            cache.set(
+                "https://example.com/fail", "failed", error_code="DOWNLOAD_FAILED"
+            )
             row = cache.get("https://example.com/fail")
         assert row is not None
         assert row["status"] == "failed"
@@ -106,7 +107,10 @@ class TestBatchCacheThreadLocal:
                 row = cache.get(url)
                 results.append(row)
 
-        threads = [threading.Thread(target=worker, args=(f"https://t{i}.com",)) for i in range(3)]
+        threads = [
+            threading.Thread(target=worker, args=(f"https://t{i}.com",))
+            for i in range(3)
+        ]
         for t in threads:
             t.start()
         for t in threads:

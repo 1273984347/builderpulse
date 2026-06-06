@@ -1,9 +1,9 @@
 """Tests for builderpulse.batch.manager — BatchManager._classify_error."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from builderpulse.batch.disk_guard import DiskFullError
 from builderpulse.batch.manager import BatchManager

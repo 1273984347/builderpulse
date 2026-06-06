@@ -1,9 +1,8 @@
 """Tests for builderpulse.batch.disk_guard — DiskGuard."""
+
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -41,6 +40,7 @@ class TestDiskGuardCheck:
         guard.check(tmp_path)
         # With 0 interval, cache should expire immediately
         import time
+
         time.sleep(0.01)
         guard.check(tmp_path)  # should re-check, still pass
 

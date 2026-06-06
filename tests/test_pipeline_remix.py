@@ -1,5 +1,5 @@
 """Tests for pipeline remix wiring — step_summarize and step_translate."""
-import pytest
+
 from unittest.mock import Mock, patch
 from builderpulse.core.pipeline import PipelineContext, step_summarize, step_translate
 from builderpulse.core.models import SourceRef
@@ -104,7 +104,9 @@ class TestStepTranslate:
 
     @patch("builderpulse.core.pipeline.time.sleep", return_value=None)
     @patch("builderpulse.remix.translator.Translator")
-    def test_step_translate_no_summary_uses_transcript(self, MockTranslator, mock_sleep):
+    def test_step_translate_no_summary_uses_transcript(
+        self, MockTranslator, mock_sleep
+    ):
         ctx = _make_ctx(transcript_text="raw transcript")
         ctx.summary = None
         mock_translator = Mock()

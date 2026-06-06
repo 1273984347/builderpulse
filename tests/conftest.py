@@ -1,6 +1,7 @@
 """Shared test fixtures."""
-import os
+
 import pytest
+
 
 @pytest.fixture(autouse=True)
 def isolate_state(tmp_path, monkeypatch):

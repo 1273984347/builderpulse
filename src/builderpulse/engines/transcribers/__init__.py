@@ -1,8 +1,8 @@
 """Transcriber auto-detection."""
+
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .base import Transcriber
 
@@ -22,8 +22,11 @@ def get_transcriber(
     """Get a transcriber instance. Auto-detects available engine if engine="auto"."""
     # P1 fix: verify ffmpeg is available before returning a transcriber
     from builderpulse.infra.platform_compat import find_ffmpeg
+
     if not find_ffmpeg():
-        raise RuntimeError("FFmpeg not found. Install it: https://ffmpeg.org/download.html")
+        raise RuntimeError(
+            "FFmpeg not found. Install it: https://ffmpeg.org/download.html"
+        )
 
     if engine == "auto":
         for name in ["faster_whisper", "whisperx", "whisper"]:
@@ -42,12 +45,15 @@ def get_transcriber(
 def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcriber:
     if name == "whisper":
         from .whisper import WhisperTranscriber
+
         return WhisperTranscriber(model=model, device=device)
     elif name == "whisperx":
         from .whisperx import WhisperXTranscriber
+
         return WhisperXTranscriber(model=model, device=device)
     elif name == "faster_whisper":
         from .faster_whisper import FasterWhisperTranscriber
+
         return FasterWhisperTranscriber(model=model, device=device)
     else:
         raise ValueError(f"Unknown engine: {name}")

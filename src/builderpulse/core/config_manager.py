@@ -32,7 +32,9 @@ class ConfigManager:
     """
 
     _lock: threading.RLock = threading.RLock()
-    _reload_lock: threading.Lock = threading.Lock()  # P1 fix: serialise concurrent reloads
+    _reload_lock: threading.Lock = (
+        threading.Lock()
+    )  # P1 fix: serialise concurrent reloads
     _config: Optional[Config] = None
     _subscribers: list[Callable[[Config], None]] = []
     _reloading: bool = False
@@ -140,7 +142,9 @@ class ConfigManager:
                     try:
                         new_config = Config.from_file(path)
                     except FileNotFoundError:
-                        logger.warning("Config file not found at %s, keeping cached config", path)
+                        logger.warning(
+                            "Config file not found at %s, keeping cached config", path
+                        )
                         cls._reloading = False
                         return cls._config or Config.from_defaults()
                     cls._config = new_config

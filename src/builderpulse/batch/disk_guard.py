@@ -5,6 +5,7 @@ Checks available space via ``shutil.disk_usage()`` and raises
 Results are cached for ``check_interval`` seconds to avoid hammering
 the filesystem on hot paths.
 """
+
 from __future__ import annotations
 
 import asyncio

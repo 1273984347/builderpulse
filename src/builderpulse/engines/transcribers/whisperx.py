@@ -1,4 +1,5 @@
 """WhisperX transcriber."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,13 +15,16 @@ class WhisperXTranscriber(Transcriber):
         self._device = device
         try:
             import whisperx  # noqa: F401
+
             self._model = None  # lazy load
         except ImportError:
             raise ImportError(
                 "whisperx not installed. Run: pip install builderpulse[whisperx]"
             )
 
-    def transcribe(self, audio_path: Path, language: Optional[str] = None) -> TranscriptResult:
+    def transcribe(
+        self, audio_path: Path, language: Optional[str] = None
+    ) -> TranscriptResult:
         import whisperx
 
         if self._model is None:

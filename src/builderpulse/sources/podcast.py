@@ -1,4 +1,5 @@
 """Podcast RSS feed source."""
+
 from __future__ import annotations
 
 import logging
@@ -73,9 +74,7 @@ class PodcastSource:
                     url=entry.link,
                     title=entry.title,
                     content=content,
-                    author=getattr(
-                        entry, "author", feed.feed.get("title", "Unknown")
-                    ),
+                    author=getattr(entry, "author", feed.feed.get("title", "Unknown")),
                     published_at=published,
                     metadata={
                         "feed_url": feed_url,

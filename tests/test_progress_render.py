@@ -1,11 +1,9 @@
 """Tests for builderpulse.infra.progress — Rich and Text progress."""
+
 from __future__ import annotations
 
-import io
-import sys
 from unittest.mock import patch
 
-import pytest
 
 from builderpulse.infra.progress import (
     RichProgress,
@@ -18,6 +16,7 @@ from builderpulse.infra.progress import (
 # ---------------------------------------------------------------------------
 # _format_duration
 # ---------------------------------------------------------------------------
+
 
 class TestFormatDuration:
     def test_seconds(self):
@@ -37,6 +36,7 @@ class TestFormatDuration:
 # TextProgress
 # ---------------------------------------------------------------------------
 
+
 class TestTextProgress:
     def test_basic_usage(self, capsys):
         p = TextProgress(total=10, desc="downloading")
@@ -51,7 +51,6 @@ class TestTextProgress:
         assert p.current == 5
 
     def test_eta(self):
-        import time
         p = TextProgress(total=100)
         p._start_time = p._start_time - 10  # pretend 10s elapsed
         p.current = 50
@@ -69,6 +68,7 @@ class TestTextProgress:
 # RichProgress (mock rich to avoid dependency)
 # ---------------------------------------------------------------------------
 
+
 class TestRichProgress:
     def test_import_fallback(self):
         """When rich is not available, RichProgress still works without crashing."""
@@ -82,6 +82,7 @@ class TestRichProgress:
 # ---------------------------------------------------------------------------
 # create_progress factory
 # ---------------------------------------------------------------------------
+
 
 class TestCreateProgress:
     def test_force_text(self):

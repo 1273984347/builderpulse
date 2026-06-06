@@ -1,10 +1,10 @@
 """Tests for builderpulse.infra.observability."""
+
 from __future__ import annotations
 
 import asyncio
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 import builderpulse.infra.observability as obs
 
@@ -27,8 +27,10 @@ def test_otel_context_attach_detach():
     mock_context.attach.return_value = mock_token
 
     # Temporarily pretend OTel is installed and inject our mock context module
-    with patch.object(obs, "_HAS_OTEL", True), \
-         patch.object(obs, "_otel_context", mock_context):
+    with (
+        patch.object(obs, "_HAS_OTEL", True),
+        patch.object(obs, "_otel_context", mock_context),
+    ):
 
         async def _test():
             async with obs.otel_context("my.key", "my.value"):
@@ -74,6 +76,7 @@ def test_noop_tracer_returns_noop_span():
     span.end()
     with span:
         pass  # context manager works
+
 
 def test_noop_meter_instruments():
     """NoOpMeter counter/histogram add/record do not raise."""

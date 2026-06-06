@@ -1,8 +1,9 @@
 """Composable content processing pipeline."""
+
 from __future__ import annotations
 
 import logging
-import time
+import time  # noqa: F401  re-exported for tests: @patch("builderpulse.core.pipeline.time.sleep")
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -77,7 +78,9 @@ def step_download(ctx: PipelineContext) -> PipelineContext:
     for dl in downloaders:
         if dl.can_handle(ctx.source):
             output_dir = Path(
-                ctx.config.workspace if ctx.config else "~/.builderpulse/output/downloads"
+                ctx.config.workspace
+                if ctx.config
+                else "~/.builderpulse/output/downloads"
             ).expanduser()
             ctx.download = dl.download(ctx.source, output_dir)
             return ctx
@@ -95,7 +98,9 @@ def step_transcribe(ctx: PipelineContext) -> PipelineContext:
     try:
         from builderpulse.engines.transcribers import get_transcriber
 
-        engine = ctx.config.engine if ctx.config and ctx.config.engine != "auto" else "auto"
+        engine = (
+            ctx.config.engine if ctx.config and ctx.config.engine != "auto" else "auto"
+        )
         transcriber = get_transcriber(engine)
         ctx.transcript = transcriber.transcribe(
             Path(ctx.download.path),
@@ -173,7 +178,11 @@ def step_deliver(channel: str) -> Callable:
     """Create a delivery step for a specific channel."""
 
     def _deliver(ctx: PipelineContext) -> PipelineContext:
-        content = ctx.translation or ctx.summary or (ctx.transcript.text if ctx.transcript else "")
+        content = (
+            ctx.translation
+            or ctx.summary
+            or (ctx.transcript.text if ctx.transcript else "")
+        )
         if not content:
             ctx.error = "No content to deliver"
             return ctx

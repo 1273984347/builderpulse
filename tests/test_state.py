@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import sqlite3
-import tempfile
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
 from builderpulse.core.state import (
-    BACKOFF_INTERVALS,
     MAX_ATTEMPTS,
     State,
     make_idem_key,
@@ -44,11 +39,16 @@ def tmp_state(tmp_path):
 class TestIdemKey:
     def test_make_idem_key(self):
         assert make_idem_key("tweet", "12345") == "tweet:12345"
-        assert make_idem_key("bilibili_video", "BV1Nd596vEyU") == "bilibili_video:BV1Nd596vEyU"
+        assert (
+            make_idem_key("bilibili_video", "BV1Nd596vEyU")
+            == "bilibili_video:BV1Nd596vEyU"
+        )
         assert make_idem_key("podcast", "abc-def-ghi") == "podcast:abc-def-ghi"
 
     def test_make_idem_key_from_url(self):
-        key1 = make_idem_key_from_url("https://example.com/article?utm_source=twitter&id=1")
+        key1 = make_idem_key_from_url(
+            "https://example.com/article?utm_source=twitter&id=1"
+        )
         key2 = make_idem_key_from_url("https://example.com/article?id=1")
         # utm_ params stripped → same key
         assert key1 == key2
@@ -69,10 +69,16 @@ class TestIdemKey:
         assert key1 != key2
 
     def test_normalize_url(self):
-        assert normalize_url("https://EXAMPLE.com/path/?utm_source=x&foo=bar") == "https://example.com/path?foo=bar"
+        assert (
+            normalize_url("https://EXAMPLE.com/path/?utm_source=x&foo=bar")
+            == "https://example.com/path?foo=bar"
+        )
 
     def test_normalize_url_strips_fragment(self):
-        assert normalize_url("https://example.com/path#section") == "https://example.com/path"
+        assert (
+            normalize_url("https://example.com/path#section")
+            == "https://example.com/path"
+        )
 
 
 # ── Schema tests ──────────────────────────────────────────────────────
@@ -100,7 +106,6 @@ class TestSchema:
 
     def test_idempotent_init(self, tmp_state):
         """Calling __init__ twice should not fail."""
-        db_path = Path(tmp_state._conn.execute("PRAGMA database_list").fetchone()[2])
         tmp_state._init_schema(tmp_state._conn)  # should not raise
 
 
@@ -191,7 +196,7 @@ class TestStateMachine:
             if current == "permanently_failed":
                 break
             # Cycle: downloading → failed → pending → downloading
-            tmp_state.transition("k:v", "failed", error=f"attempt {i+1}")
+            tmp_state.transition("k:v", "failed", error=f"attempt {i + 1}")
             current = tmp_state.get_item("k:v").status
             if current == "permanently_failed":
                 break
@@ -307,7 +312,9 @@ class TestDeliveryLog:
 
 class TestBatch:
     def test_start_batch(self, tmp_state):
-        run_id = tmp_state.start_batch("https://douyin.com/user/123", ["url1", "url2", "url3"])
+        run_id = tmp_state.start_batch(
+            "https://douyin.com/user/123", ["url1", "url2", "url3"]
+        )
         assert len(run_id) == 12
         run = tmp_state.get_batch_run(run_id)
         assert run is not None

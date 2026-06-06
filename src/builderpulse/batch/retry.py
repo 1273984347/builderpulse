@@ -84,7 +84,7 @@ def retry(
         try:
             return fn(*args, **kwargs)
         except Exception as exc:
-            delay = 0.0 if attempt == 0 else min(backoff_base ** attempt, _BACKOFF_CAP)
+            delay = 0.0 if attempt == 0 else min(backoff_base**attempt, _BACKOFF_CAP)
             history.append((attempt, exc, delay))
 
             # Non-retryable: fail immediately
@@ -143,7 +143,7 @@ async def retry_async(
                 loop = asyncio.get_running_loop()
                 return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
         except Exception as exc:
-            delay = 0.0 if attempt == 0 else min(backoff_base ** attempt, _BACKOFF_CAP)
+            delay = 0.0 if attempt == 0 else min(backoff_base**attempt, _BACKOFF_CAP)
             history.append((attempt, exc, delay))
 
             # Non-retryable: fail immediately

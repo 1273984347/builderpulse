@@ -1,11 +1,14 @@
 """MCP-aware logger. All output goes to stderr in MCP mode."""
+
 import logging
 import os
+import re
 import sys
 import threading
 
 _LOGGERS: dict[str, logging.Logger] = {}
 _LOGGER_LOCK = threading.Lock()
+
 
 def get_logger(name: str) -> logging.Logger:
     """Get or create a logger. Respects BUILDERPULSE_MODE env var.
@@ -29,10 +32,11 @@ def get_logger(name: str) -> logging.Logger:
             # CLI mode: progress/results → stdout, logs → stderr
             handler = logging.StreamHandler(sys.stderr)
 
-        handler.setFormatter(logging.Formatter(
-            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            datefmt='%H:%M:%S'
-        ))
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S"
+            )
+        )
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         logger.propagate = False
@@ -40,13 +44,10 @@ def get_logger(name: str) -> logging.Logger:
         _LOGGERS[name] = logger
         return logger
 
+
 def is_mcp_mode() -> bool:
     """Check if running in MCP mode."""
     return os.environ.get("BUILDERPULSE_MODE", "cli").lower() == "mcp"
-
-
-import re
-import json
 
 
 class SensitiveDataFilter(logging.Filter):
@@ -63,7 +64,12 @@ class SensitiveDataFilter(logging.Filter):
     """
 
     SENSITIVE_KEYWORDS = [
-        "w_rid", "wts", "sessdata", "api_key", "token", "secret",
+        "w_rid",
+        "wts",
+        "sessdata",
+        "api_key",
+        "token",
+        "secret",
     ]
 
     # Marker attribute on LogRecord.__dict__ to prevent re-redaction.

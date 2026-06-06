@@ -104,7 +104,9 @@ class TestTelegramChannel:
 
 class TestEmailChannel:
     def test_construction(self):
-        ch = EmailChannel(smtp_host="smtp.example.com", smtp_user="u", smtp_pass="p", to="r")
+        ch = EmailChannel(
+            smtp_host="smtp.example.com", smtp_user="u", smtp_pass="p", to="r"
+        )
         assert ch.smtp_host == "smtp.example.com"
         assert ch.smtp_port == 587
 
@@ -117,26 +119,46 @@ class TestEmailChannel:
         assert ch.max_length == 4096
 
     def test_send_smtp_port_587(self, monkeypatch):
-        ch = EmailChannel(smtp_host="smtp.ex.com", smtp_port=587, smtp_user="u", smtp_pass="p", to="r")
+        ch = EmailChannel(
+            smtp_host="smtp.ex.com", smtp_port=587, smtp_user="u", smtp_pass="p", to="r"
+        )
 
         class FakeSMTP:
-            def starttls(self): pass
-            def login(self, u, p): pass
-            def send_message(self, msg): pass
-            def __enter__(self): return self
-            def __exit__(self, *a): pass
+            def starttls(self):
+                pass
+
+            def login(self, u, p):
+                pass
+
+            def send_message(self, msg):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
 
         monkeypatch.setattr("smtplib.SMTP", lambda h, p: FakeSMTP())
         assert ch.send("hello", "Test") is True
 
     def test_send_smtp_port_465(self, monkeypatch):
-        ch = EmailChannel(smtp_host="smtp.ex.com", smtp_port=465, smtp_user="u", smtp_pass="p", to="r")
+        ch = EmailChannel(
+            smtp_host="smtp.ex.com", smtp_port=465, smtp_user="u", smtp_pass="p", to="r"
+        )
 
         class FakeSMTPSSL:
-            def login(self, u, p): pass
-            def send_message(self, msg): pass
-            def __enter__(self): return self
-            def __exit__(self, *a): pass
+            def login(self, u, p):
+                pass
+
+            def send_message(self, msg):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
 
         monkeypatch.setattr("smtplib.SMTP_SSL", lambda h, p: FakeSMTPSSL())
         assert ch.send("hello", "Test") is True
@@ -310,7 +332,9 @@ class TestDiscordChannel:
 
 class TestWeComChannel:
     def test_construction(self):
-        ch = WeComChannel(webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        ch = WeComChannel(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+        )
         assert ch.webhook_url == "https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
 
     def test_name(self):
@@ -322,7 +346,9 @@ class TestWeComChannel:
         assert ch.max_length == 4096
 
     def test_send_success(self, monkeypatch):
-        ch = WeComChannel(webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        ch = WeComChannel(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+        )
 
         class FakeResponse:
             status_code = 200
@@ -344,7 +370,9 @@ class TestWeComChannel:
             ch.send("hello")
 
     def test_send_non_200(self, monkeypatch):
-        ch = WeComChannel(webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        ch = WeComChannel(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+        )
 
         class FakeResponse:
             status_code = 403
@@ -362,7 +390,9 @@ class TestWeComChannel:
 
 class TestWeChatChannel:
     def test_construction(self):
-        ch = WeChatChannel(webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        ch = WeChatChannel(
+            webhook_url="https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+        )
         assert ch.webhook_url == "https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
 
     def test_name(self):

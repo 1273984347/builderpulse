@@ -1,4 +1,5 @@
 """Performance profiling, parallel execution, and download caching."""
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +26,10 @@ _MAX_TIMESTEPS = 1000  # P1 fix: cap per-step list size
 # @profile_step decorator
 # ---------------------------------------------------------------------------
 
-def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = None) -> Any:
+
+def profile_step(
+    fn: Callable[..., Any] | None = None, *, name: str | None = None
+) -> Any:
     """Decorator that records execution time in ``STEP_TIMES``.
 
     Works for both sync and async functions.  The recorded key defaults to the
@@ -36,6 +40,7 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
         step_name = name or func.__name__
 
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def _async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 t0 = time.perf_counter()
@@ -48,8 +53,10 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                         times.append(elapsed)
                         if len(times) > _MAX_TIMESTEPS:
                             STEP_TIMES[step_name] = times[-_MAX_TIMESTEPS:]
+
             return _async_wrapper
         else:
+
             @functools.wraps(func)
             def _sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 t0 = time.perf_counter()
@@ -62,6 +69,7 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
                         times.append(elapsed)
                         if len(times) > _MAX_TIMESTEPS:
                             STEP_TIMES[step_name] = times[-_MAX_TIMESTEPS:]
+
             return _sync_wrapper
 
     if fn is not None:
@@ -72,6 +80,7 @@ def profile_step(fn: Callable[..., Any] | None = None, *, name: str | None = Non
 # ---------------------------------------------------------------------------
 # PerformanceReport
 # ---------------------------------------------------------------------------
+
 
 class PerformanceReport:
     """Aggregates ``STEP_TIMES`` into count/total/mean/min/max stats."""
@@ -102,8 +111,10 @@ class PerformanceReport:
         data = self.aggregate()
         if not data:
             return ""
-        lines = ["| Step | Count | Total (s) | Mean (s) | Min (s) | Max (s) |",
-                 "|------|-------|-----------|----------|---------|---------|"]
+        lines = [
+            "| Step | Count | Total (s) | Mean (s) | Min (s) | Max (s) |",
+            "|------|-------|-----------|----------|---------|---------|",
+        ]
         for step, stats in data.items():
             lines.append(
                 f"| {step} | {stats['count']} "
@@ -117,6 +128,7 @@ class PerformanceReport:
 # _verify_picklable
 # ---------------------------------------------------------------------------
 
+
 def _verify_picklable(item: Any) -> None:
     """Raise ``TypeError`` if *item* cannot be pickled (needed for ProcessPool)."""
     try:
@@ -128,6 +140,7 @@ def _verify_picklable(item: Any) -> None:
 # ---------------------------------------------------------------------------
 # parallel_map  (sync)
 # ---------------------------------------------------------------------------
+
 
 def parallel_map(
     fn: Callable[[T], R],
@@ -160,6 +173,7 @@ def parallel_map(
 # parallel_map_async  (async, batch submission)
 # ---------------------------------------------------------------------------
 
+
 async def parallel_map_async(
     fn: Callable[[T], Any],
     items: List[T],
@@ -184,7 +198,11 @@ async def parallel_map_async(
 
     executor = None
     if not is_async:
-        executor = ThreadPoolExecutor(max_workers=max_workers) if mode == "thread" else ProcessPoolExecutor(max_workers=max_workers)
+        executor = (
+            ThreadPoolExecutor(max_workers=max_workers)
+            if mode == "thread"
+            else ProcessPoolExecutor(max_workers=max_workers)
+        )
 
     try:
         results: List[Any] = []
@@ -204,6 +222,7 @@ async def parallel_map_async(
 # ---------------------------------------------------------------------------
 # parallel_map_async_safe  (async, per-item error handling)
 # ---------------------------------------------------------------------------
+
 
 async def parallel_map_async_safe(
     fn: Callable[[T], Any],
@@ -229,7 +248,11 @@ async def parallel_map_async_safe(
 
     executor = None
     if not is_async:
-        executor = ThreadPoolExecutor(max_workers=max_workers) if mode == "thread" else ProcessPoolExecutor(max_workers=max_workers)
+        executor = (
+            ThreadPoolExecutor(max_workers=max_workers)
+            if mode == "thread"
+            else ProcessPoolExecutor(max_workers=max_workers)
+        )
 
     try:
         results: List[Any] = []
@@ -255,6 +278,7 @@ async def parallel_map_async_safe(
 # ---------------------------------------------------------------------------
 # DownloadCache
 # ---------------------------------------------------------------------------
+
 
 class DownloadCache:
     """In-memory URL-to-path dedup cache."""

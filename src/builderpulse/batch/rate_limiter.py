@@ -3,6 +3,7 @@
 The bucket refills at ``qps`` tokens per second (up to ``qps`` capacity).
 ``acquire()`` waits asynchronously until a token is available.
 """
+
 from __future__ import annotations
 
 import asyncio

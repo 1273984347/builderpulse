@@ -1,4 +1,5 @@
 """OpenAI Whisper transcriber."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,13 +15,16 @@ class WhisperTranscriber(Transcriber):
         self._device = device
         try:
             import whisper  # noqa: F401
+
             self._model = None  # lazy load
         except ImportError:
             raise ImportError(
                 "openai-whisper not installed. Run: pip install builderpulse[whisper]"
             )
 
-    def transcribe(self, audio_path: Path, language: Optional[str] = None) -> TranscriptResult:
+    def transcribe(
+        self, audio_path: Path, language: Optional[str] = None
+    ) -> TranscriptResult:
         import whisper
 
         if self._model is None:

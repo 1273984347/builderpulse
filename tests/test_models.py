@@ -41,6 +41,7 @@ def test_source_ref_twitter():
 
 def test_source_ref_twitter_no_status():
     import pytest
+
     with pytest.raises(ValueError, match="Cannot extract tweet ID"):
         SourceRef.from_url("https://x.com/elonmusk")
 
@@ -119,7 +120,9 @@ class TestSourceRefEdgeCases:
 
     def test_url_with_unicode_path(self):
         """URL with unicode characters is handled."""
-        ref = SourceRef.from_url("https://www.bilibili.com/video/BV1xx411c7mD/?title=测试")
+        ref = SourceRef.from_url(
+            "https://www.bilibili.com/video/BV1xx411c7mD/?title=测试"
+        )
         assert ref.source_type == "bilibili"
         assert "BV" in ref.native_id
 
@@ -174,7 +177,9 @@ class TestSourceRefEdgeCases:
 
     def test_title_parameter(self):
         """Title parameter is stored."""
-        ref = SourceRef.from_url("https://www.youtube.com/watch?v=abc", title="My Video")
+        ref = SourceRef.from_url(
+            "https://www.youtube.com/watch?v=abc", title="My Video"
+        )
         assert ref.title == "My Video"
 
     def test_title_default_none(self):

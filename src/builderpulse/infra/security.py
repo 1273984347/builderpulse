@@ -1,12 +1,19 @@
 """URL safety checks and filename sanitization."""
+
 from __future__ import annotations
 import re
 from urllib.parse import urlparse
 
 TRUSTED_DOMAINS = {
-    "youtube.com", "youtu.be", "bilibili.com", "douyin.com",
-    "x.com", "twitter.com", "github.com",
+    "youtube.com",
+    "youtu.be",
+    "bilibili.com",
+    "douyin.com",
+    "x.com",
+    "twitter.com",
+    "github.com",
 }
+
 
 def is_safe_url(url: str) -> bool:
     """Check if URL is from a trusted domain."""
@@ -19,14 +26,15 @@ def is_safe_url(url: str) -> bool:
     except Exception:
         return False
 
+
 def sanitize_filename(name: str, max_len: int = 200) -> str:
     """Sanitize a string for use as a filename."""
     # Remove/replace invalid chars
-    name = re.sub(r'[<>:"/\\|?*]', '_', name)
+    name = re.sub(r'[<>:"/\\|?*]', "_", name)
     # Remove control chars
-    name = re.sub(r'[\x00-\x1f]', '', name)
+    name = re.sub(r"[\x00-\x1f]", "", name)
     # Collapse whitespace
-    name = re.sub(r'\s+', ' ', name).strip()
+    name = re.sub(r"\s+", " ", name).strip()
     # Truncate
     if len(name) > max_len:
         name = name[:max_len]

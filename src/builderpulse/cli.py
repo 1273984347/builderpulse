@@ -1,4 +1,5 @@
 """BuilderPulse CLI — main entry point."""
+
 from __future__ import annotations
 import sys
 import os
@@ -8,32 +9,49 @@ from pathlib import Path
 # Ensure MCP mode is not set for CLI
 os.environ.pop("BUILDERPULSE_MODE", None)
 
+
 @click.group()
 @click.version_option(version="1.0.0", prog_name="builderpulse")
 def cli():
     """BuilderPulse — Track what AI builders are saying."""
     pass
 
+
 # ── Transcribe ──────────────────────────────────────────────────
+
 
 @cli.command()
 @click.argument("url")
 # P2 fix (H3): default=None; resolve from ConfigManager.get() at runtime
 # so a user who sets BUILDERPULSE_ENGINE in config.json does not have to
 # pass --engine on every CLI invocation.
-@click.option("--engine", default=None, help="Transcription engine (auto/whisper/whisperx/faster-whisper). Defaults to config value.")
-@click.option("--language", default=None, help="Language code (zh/en/auto). Defaults to config value.")
-@click.option("--output", default="file", type=click.Choice(["file", "stdout"]), help="Output destination")
+@click.option(
+    "--engine",
+    default=None,
+    help="Transcription engine (auto/whisper/whisperx/faster-whisper). Defaults to config value.",
+)
+@click.option(
+    "--language",
+    default=None,
+    help="Language code (zh/en/auto). Defaults to config value.",
+)
+@click.option(
+    "--output",
+    default="file",
+    type=click.Choice(["file", "stdout"]),
+    help="Output destination",
+)
 def transcribe(url, engine, language, output):
     """Transcribe a video/audio URL to text."""
     from builderpulse.infra.security import is_safe_url
+
     if not is_safe_url(url):
         click.echo(f"Error: URL not allowed: {url}", err=True)
         sys.exit(1)
 
     from builderpulse.core.config_manager import ConfigManager
     from builderpulse.core.models import SourceRef
-    from builderpulse.core.pipeline import Pipeline, PipelineContext, step_download, step_transcribe
+    from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe
 
     cfg = ConfigManager.get()
     if engine is None:
@@ -61,13 +79,17 @@ def transcribe(url, engine, language, output):
             out_path.write_text(ctx.transcript.text, encoding="utf-8")
             click.echo(f"Saved to: {out_path}")
 
+
 # ── Batch ───────────────────────────────────────────────────────
+
 
 @cli.command()
 @click.argument("user_url")
 @click.option("--limit", default=20, help="Max videos to process")
 # P2 fix (H3): default=None; resolve from ConfigManager.get().engine
-@click.option("--engine", default=None, help="Transcription engine (defaults to config value)")
+@click.option(
+    "--engine", default=None, help="Transcription engine (defaults to config value)"
+)
 @click.option("--concurrency", default=5, type=int, help="Max concurrent items")
 @click.option("--qps", default=5.0, type=float, help="Rate limit (requests/sec)")
 def batch(user_url, limit, engine, concurrency, qps):
@@ -81,10 +103,6 @@ def batch(user_url, limit, engine, concurrency, qps):
         engine = base_cfg.engine
     cfg = Config(engine=engine, language=base_cfg.language)
     click.echo(f"Batch mode: {user_url} (limit={limit})")
-
-    # Resolve URLs from source
-    from builderpulse.core.models import SourceRef
-    source = SourceRef.from_url(user_url)
 
     # For now, process the single URL; multi-URL resolution is source-dependent
     urls = [user_url]
@@ -103,16 +121,27 @@ def batch(user_url, limit, engine, concurrency, qps):
             if r.get("status") == "done":
                 click.echo(f"  OK: {r['url']}")
             else:
-                click.echo(f"  FAIL: {r['url']} — {r.get('error', r.get('error_code', 'unknown'))}", err=True)
+                click.echo(
+                    f"  FAIL: {r['url']} — {r.get('error', r.get('error_code', 'unknown'))}",
+                    err=True,
+                )
     finally:
         mgr.shutdown()
 
+
 # ── Digest ──────────────────────────────────────────────────────
 
+
 @cli.command()
-@click.option("--sources", default="all", help="Sources to fetch (comma-separated or 'all')")
+@click.option(
+    "--sources", default="all", help="Sources to fetch (comma-separated or 'all')"
+)
 # P2 fix (H3): default=None; resolve from ConfigManager.get().language
-@click.option("--lang", default=None, help="Output language (en/zh/bilingual). Defaults to config value.")
+@click.option(
+    "--lang",
+    default=None,
+    help="Output language (en/zh/bilingual). Defaults to config value.",
+)
 @click.option("--days", default=1, type=int, help="Lookback days")
 @click.option("--deliver", default=None, help="Delivery channels (comma-separated)")
 @click.option("--skip-failed", is_flag=True, default=True, help="Skip failed sources")
@@ -128,6 +157,7 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     # Resolve --lang from config if not provided
     if lang is None:
         from builderpulse.core.config import Config as _Cfg
+
         try:
             lang = _Cfg.from_file(ConfigManager.get_config_path()).language
         except Exception:
@@ -139,7 +169,10 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     # MCP code paths don't drift. The aggregator returns (items, errors);
     # we surface per-source counts to the user.
     items, errors = fetch_all_sources(
-        cfg, days=days, sources=sources, skip_failed=skip_failed,
+        cfg,
+        days=days,
+        sources=sources,
+        skip_failed=skip_failed,
     )
 
     for err in errors:
@@ -165,7 +198,10 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
     # Deliver
     if deliver:
         from builderpulse.deliver import get_channel
-        content = "\n\n".join(f"## {i.title}\n{i.content[:300]}\n{i.url}" for i in items[:20])
+
+        content = "\n\n".join(
+            f"## {i.title}\n{i.content[:300]}\n{i.url}" for i in items[:20]
+        )
         for ch_name in deliver.split(","):
             ch_name = ch_name.strip()
             try:
@@ -175,10 +211,14 @@ def digest(sources, lang, days, deliver, skip_failed, no_state):
             except Exception as e:
                 click.echo(f"Delivery to {ch_name} failed: {e}", err=True)
 
+
 # ── Fetch ───────────────────────────────────────────────────────
 
+
 @cli.command()
-@click.argument("source", type=click.Choice(["twitter", "podcast", "blog", "bilibili", "youtube"]))
+@click.argument(
+    "source", type=click.Choice(["twitter", "podcast", "blog", "bilibili", "youtube"])
+)
 @click.option("--limit", default=10, help="Max items")
 @click.option("--days", default=7, type=int, help="Lookback days")
 @click.option("--user", default=None, help="User ID (for bilibili)")
@@ -195,16 +235,19 @@ def fetch(source, limit, days, user):
     try:
         if source == "podcast":
             from builderpulse.sources.podcast import PodcastSource
+
             feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
             src = PodcastSource(feeds=feeds)
             items = src.fetch(days=days, limit=limit)
         elif source == "twitter":
             from builderpulse.sources.twitter import TwitterSource
+
             accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
             src = TwitterSource(accounts=accounts)
             items = src.fetch(limit=limit)
         elif source == "blog":
             from builderpulse.sources.blog import BlogSource
+
             urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
             src = BlogSource(urls=urls)
             items = src.fetch(days=days, limit=limit)
@@ -213,10 +256,12 @@ def fetch(source, limit, days, user):
                 click.echo("Error: --user <mid> required for bilibili", err=True)
                 sys.exit(1)
             from builderpulse.sources.bilibili import BilibiliSource
+
             src = BilibiliSource(users=[{"mid": int(user), "name": str(user)}])
             items = src.fetch(limit=limit)
         elif source == "youtube":
             from builderpulse.sources.youtube import YouTubeSource
+
             src = YouTubeSource()
             items = src.fetch(limit=limit)
         else:
@@ -230,7 +275,9 @@ def fetch(source, limit, days, user):
     for item in items:
         click.echo(f"  [{item.source_type}] {item.title} — {item.url}")
 
+
 # ── Process ─────────────────────────────────────────────────────
+
 
 @cli.command()
 @click.argument("url")
@@ -239,12 +286,19 @@ def fetch(source, limit, days, user):
 def process(url, summarize, deliver):
     """End-to-end pipeline: download → transcribe → summarize → deliver."""
     from builderpulse.infra.security import is_safe_url
+
     if not is_safe_url(url):
         click.echo(f"Error: URL not allowed: {url}", err=True)
         sys.exit(1)
 
     from builderpulse.core.models import SourceRef
-    from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe, step_summarize, step_deliver
+    from builderpulse.core.pipeline import (
+        Pipeline,
+        step_download,
+        step_transcribe,
+        step_summarize,
+        step_deliver,
+    )
 
     source = SourceRef.from_url(url)
     click.echo(f"Processing: {source.url}")
@@ -269,7 +323,9 @@ def process(url, summarize, deliver):
     if ctx.summary:
         click.echo(f"Summary: {ctx.summary[:200]}...")
 
+
 # ── Clean ───────────────────────────────────────────────────────
+
 
 @cli.command()
 @click.option("--all", "clean_all", is_flag=True, help="Delete all output")
@@ -286,20 +342,25 @@ def clean(clean_all, dry_run):
     else:
         click.echo(f"Removed {removed} state entries")
 
+
 # ── Config ──────────────────────────────────────────────────────
+
 
 @cli.group()
 def config():
     """Manage BuilderPulse configuration."""
     pass
 
+
 @config.command("show")
 def config_show():
     """Show current configuration."""
     from builderpulse.core.config import Config
     import json
+
     cfg = Config()
     click.echo(json.dumps(cfg.to_dict(mask_secrets=True), indent=2))
+
 
 @config.command("set")
 @click.argument("key")
@@ -350,10 +411,12 @@ def config_set(key, value):
 
     click.echo(f"Set {key} = {value}")
 
+
 @config.command("reload")
 def config_reload():
     """Reload configuration from disk and notify subscribers."""
     from builderpulse.core.config_manager import ConfigManager
+
     path = ConfigManager.get_config_path()
     if not Path(path).exists():
         click.echo(f"Config file not found: {path}", err=True)
@@ -367,10 +430,10 @@ def config_reload():
         for f_cb in failed:
             click.echo(f"    - {f_cb['callback']}: {f_cb['error']}", err=True)
 
+
 @config.command("init")
 def config_init():
     """Interactive setup — configure BuilderPulse in 60 seconds."""
-    from builderpulse.core.config import Config
     from pathlib import Path
     import json
 
@@ -383,7 +446,9 @@ def config_init():
     click.echo()
 
     # Language
-    lang = click.prompt("Language", type=click.Choice(["en", "zh", "bilingual"]), default="zh")
+    lang = click.prompt(
+        "Language", type=click.Choice(["en", "zh", "bilingual"]), default="zh"
+    )
 
     # Transcription engine
     click.echo()
@@ -391,7 +456,9 @@ def config_init():
     click.echo("  1. faster-whisper  (recommended, CPU, no PyTorch)")
     click.echo("  2. whisper         (OpenAI Whisper, needs PyTorch)")
     click.echo("  3. whisperx        (best quality, needs GPU)")
-    engine_choice = click.prompt("Choose engine", type=click.Choice(["1", "2", "3"]), default="1")
+    engine_choice = click.prompt(
+        "Choose engine", type=click.Choice(["1", "2", "3"]), default="1"
+    )
     engine_map = {"1": "faster-whisper", "2": "whisper", "3": "whisperx"}
     engine = engine_map[engine_choice]
 
@@ -400,7 +467,9 @@ def config_init():
     click.echo("Enable content sources? (y/n for each)")
     enable_podcast = click.prompt("  Podcast RSS?", type=bool, default=True)
     enable_blog = click.prompt("  Blog scraping?", type=bool, default=True)
-    enable_twitter = click.prompt("  X/Twitter? (requires $100/mo API key)", type=bool, default=False)
+    enable_twitter = click.prompt(
+        "  X/Twitter? (requires $100/mo API key)", type=bool, default=False
+    )
     enable_bilibili = click.prompt("  Bilibili?", type=bool, default=True)
 
     # Delivery
@@ -412,8 +481,17 @@ def config_init():
     click.echo("  4. dingtalk (钉钉)")
     click.echo("  5. discord")
     click.echo("  6. email (SMTP)")
-    delivery_choice = click.prompt("Choose", type=click.Choice(["1","2","3","4","5","6"]), default="1")
-    delivery_map = {"1": "stdout", "2": "telegram", "3": "lark", "4": "dingtalk", "5": "discord", "6": "email"}
+    delivery_choice = click.prompt(
+        "Choose", type=click.Choice(["1", "2", "3", "4", "5", "6"]), default="1"
+    )
+    delivery_map = {
+        "1": "stdout",
+        "2": "telegram",
+        "3": "lark",
+        "4": "dingtalk",
+        "5": "discord",
+        "6": "email",
+    }
     delivery = delivery_map[delivery_choice]
 
     # Build config
@@ -431,7 +509,11 @@ def config_init():
         "delivery": {
             "method": delivery,
             "telegram": {"botToken": "", "chatId": ""},
-            "email": {"provider": "smtp", "smtp": {"host": "", "port": 587, "user": "", "password": ""}, "to": ""},
+            "email": {
+                "provider": "smtp",
+                "smtp": {"host": "", "port": 587, "user": "", "password": ""},
+                "to": "",
+            },
             "lark": {"webhook_url": "", "secret": ""},
             "dingtalk": {"webhook_url": "", "secret": ""},
             "discord": {"webhook_url": ""},
@@ -443,22 +525,32 @@ def config_init():
         "cleanup": {"autoTTL": "7d", "maxSize": "5GB"},
     }
 
-    config_file.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+    config_file.write_text(
+        json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     click.echo()
     click.echo(f"Config saved to: {config_file}")
     click.echo()
     click.echo("Next steps:")
     if delivery == "telegram":
-        click.echo("  1. Set Telegram bot: bp config set delivery.telegram.botToken <token>")
-        click.echo("  2. Set chat ID:     bp config set delivery.telegram.chatId <chat_id>")
+        click.echo(
+            "  1. Set Telegram bot: bp config set delivery.telegram.botToken <token>"
+        )
+        click.echo(
+            "  2. Set chat ID:     bp config set delivery.telegram.chatId <chat_id>"
+        )
     click.echo(f"  Run: bp digest --lang {lang} --deliver {delivery}")
     click.echo()
     click.echo("For MCP integration (Claude Code / Cursor), add to settings:")
-    click.echo('  {"mcpServers": {"builderpulse": {"command": "bp", "args": ["serve"]}}}')
+    click.echo(
+        '  {"mcpServers": {"builderpulse": {"command": "bp", "args": ["serve"]}}}'
+    )
     click.echo()
 
+
 # ── Serve (MCP) ─────────────────────────────────────────────────
+
 
 @cli.command()
 @click.option("--port", default=None, type=int, help="SSE port (default: stdio mode)")
@@ -467,10 +559,13 @@ def serve(port):
     os.environ["BUILDERPULSE_MODE"] = "mcp"
     click.echo("Starting BuilderPulse MCP server (stdio)...", err=True)
     from builderpulse.mcp_server import run_mcp_server
+
     run_mcp_server()
+
 
 def main():
     cli()
+
 
 if __name__ == "__main__":
     main()

@@ -6,6 +6,7 @@ Provides two implementations:
 
 ``create_progress(**kwargs)`` is the recommended factory.
 """
+
 from __future__ import annotations
 
 import sys
@@ -67,6 +68,7 @@ class ProgressBase(ABC):
 # Rich progress  (TTY mode)
 # ---------------------------------------------------------------------------
 
+
 class RichProgress(ProgressBase):
     """Progress bar powered by ``rich.progress.Progress``."""
 
@@ -85,6 +87,7 @@ class RichProgress(ProgressBase):
                 TimeElapsedColumn,
                 TimeRemainingColumn,
             )
+
             self._progress = Progress(
                 TextColumn("[bold blue]{task.description}"),
                 BarColumn(),
@@ -100,7 +103,9 @@ class RichProgress(ProgressBase):
 
     def _on_update(self) -> None:
         if self._progress is not None and self._task_id is not None:
-            self._progress.update(self._task_id, completed=self.current, description=self.desc)
+            self._progress.update(
+                self._task_id, completed=self.current, description=self.desc
+            )
 
     def _finish(self) -> None:
         if self._progress is not None:
@@ -110,6 +115,7 @@ class RichProgress(ProgressBase):
 # ---------------------------------------------------------------------------
 # Text progress  (non-TTY / MCP mode)
 # ---------------------------------------------------------------------------
+
 
 class TextProgress(ProgressBase):
     """Simple ``"42% (3/10) ETA 2m"`` output to stderr."""
@@ -151,6 +157,7 @@ def _format_duration(seconds: float) -> str:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def create_progress(
     total: int,

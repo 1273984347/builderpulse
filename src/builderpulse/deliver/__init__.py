@@ -1,4 +1,5 @@
 """Delivery channel registry."""
+
 from __future__ import annotations
 
 from .base import DeliveryChannel
@@ -26,7 +27,9 @@ _CHANNELS = {
 def get_channel(name: str, **kwargs) -> DeliveryChannel:
     cls = _CHANNELS.get(name)
     if not cls:
-        raise ValueError(f"Unknown channel: {name}. Available: {list(_CHANNELS.keys())}")
+        raise ValueError(
+            f"Unknown channel: {name}. Available: {list(_CHANNELS.keys())}"
+        )
     return cls(**kwargs)
 
 

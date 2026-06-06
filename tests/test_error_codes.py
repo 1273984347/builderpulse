@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from builderpulse.core.error_codes import ErrorCode, register_plugin_code, get_error_info
+from builderpulse.core.error_codes import (
+    ErrorCode,
+    register_plugin_code,
+    get_error_info,
+)
 
 
 def test_error_code_values():

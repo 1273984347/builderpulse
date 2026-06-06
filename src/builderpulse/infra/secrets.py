@@ -1,4 +1,5 @@
 """Secret storage with 3-tier fallback: env var -> keyring -> secrets.json."""
+
 from __future__ import annotations
 
 import json
@@ -75,20 +76,24 @@ def set_secret(key: str, value: str) -> None:
     tmp_path = SECRETS_FILE.with_suffix(".tmp")
     tmp_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     import os
+
     os.replace(str(tmp_path), str(SECRETS_FILE))
 
     # Set permissions (Unix only)
     if sys.platform != "win32":
         import os as _os
+
         _os.chmod(SECRETS_FILE, 0o600)
     else:
         # P2 fix: Windows ACL — inherit default DACL is too permissive
         # (Users group typically has Read). Attempt icacls to restrict to
         # current user only. If icacls is not on PATH, just warn.
         import logging
+
         _log = logging.getLogger("builderpulse.secrets")
         import shutil
         import subprocess
+
         icacls = shutil.which("icacls")
         if not icacls:
             _log.warning(
@@ -103,8 +108,12 @@ def set_secret(key: str, value: str) -> None:
                     # /inheritance:r  — remove inherited ACLs
                     # /grant:r USER:(R,W) — grant current user R/W only
                     subprocess.run(
-                        [icacls, str(SECRETS_FILE), "/inheritance:r",
-                         f"/grant:r {username}:(R,W)"],
+                        [
+                            icacls,
+                            str(SECRETS_FILE),
+                            "/inheritance:r",
+                            f"/grant:r {username}:(R,W)",
+                        ],
                         check=True,
                         capture_output=True,
                         timeout=10,
@@ -114,7 +123,11 @@ def set_secret(key: str, value: str) -> None:
                         "Could not determine current user (USERNAME/USER); "
                         "leaving secrets.json ACLs unchanged."
                     )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+                OSError,
+            ) as exc:
                 _log.warning("icacls failed for secrets.json: %s", exc)
 
 

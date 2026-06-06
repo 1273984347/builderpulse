@@ -1,4 +1,5 @@
 """Simple i18n support for BuilderPulse."""
+
 from __future__ import annotations
 import os
 import threading
@@ -33,6 +34,7 @@ _MESSAGES = {
 _current_lang = None
 _i18n_lock = threading.Lock()
 
+
 def get_language() -> str:
     """Get current language. Thread-safe."""
     global _current_lang
@@ -41,11 +43,13 @@ def get_language() -> str:
             _current_lang = os.environ.get("BUILDERPULSE_LANGUAGE", "en").lower()
         return _current_lang
 
+
 def set_language(lang: str) -> None:
     """Set current language. Thread-safe."""
     global _current_lang
     with _i18n_lock:
         _current_lang = lang.lower()
+
 
 def t(key: str, default: str | None = None, **kwargs) -> str:
     """Translate a message key."""

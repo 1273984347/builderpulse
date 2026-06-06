@@ -3,6 +3,7 @@
 Composes :class:`BatchCache`, :class:`DiskGuard`, :class:`RateLimiter`,
 and an ``asyncio.Semaphore`` for concurrency control.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -64,12 +65,14 @@ class BatchManager:
                 results.append(result)
             except Exception as exc:
                 error_code = self._classify_error(exc)
-                results.append({
-                    "url": url,
-                    "status": "failed",
-                    "error_code": error_code,
-                    "error": str(exc),
-                })
+                results.append(
+                    {
+                        "url": url,
+                        "status": "failed",
+                        "error_code": error_code,
+                        "error": str(exc),
+                    }
+                )
         return results
 
     async def process_batch_async(self, urls: List[str]) -> List[Dict[str, Any]]:
@@ -89,6 +92,7 @@ class BatchManager:
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
                     import warnings
+
                     warnings.warn(
                         "No running event loop; falling back to "
                         "asyncio.get_event_loop() (deprecated)",
@@ -105,12 +109,14 @@ class BatchManager:
         for url, res in zip(urls, results):
             if isinstance(res, Exception):
                 error_code = self._classify_error(res)
-                out.append({
-                    "url": url,
-                    "status": "failed",
-                    "error_code": error_code,
-                    "error": str(res),
-                })
+                out.append(
+                    {
+                        "url": url,
+                        "status": "failed",
+                        "error_code": error_code,
+                        "error": str(res),
+                    }
+                )
             else:
                 out.append(res)
         return out
@@ -125,7 +131,11 @@ class BatchManager:
             return cached
 
         # 2. Disk space check
-        workspace = self._config.workspace if self._config else str(Path.home() / ".builderpulse" / "output")
+        workspace = (
+            self._config.workspace
+            if self._config
+            else str(Path.home() / ".builderpulse" / "output")
+        )
         self._disk.check(workspace)
 
         # 3. Download → transcribe → summarize via pipeline

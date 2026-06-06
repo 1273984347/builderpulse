@@ -72,6 +72,8 @@ def test_step_summarize_without_transcript():
     """step_summarize sets error when no transcript."""
     from builderpulse.core.pipeline import step_summarize
 
-    ctx = PipelineContext(source=SourceRef(source_type="test", native_id="1", url="http://t"))
+    ctx = PipelineContext(
+        source=SourceRef(source_type="test", native_id="1", url="http://t")
+    )
     ctx = step_summarize(ctx)
     assert ctx.error is not None

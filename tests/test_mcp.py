@@ -1,33 +1,35 @@
 """Tests for MCP server tools."""
+
 from builderpulse.mcp_server import handle_tool_call, TOOLS
 
+
 def test_tool_registry():
-    assert len(TOOLS) == 8
+    assert len(TOOLS) == 6
     names = [t["name"] for t in TOOLS]
     assert "bp_transcribe" in names
     assert "bp_digest" in names
     assert "bp_config" in names
+
 
 def test_list_sources():
     result = handle_tool_call("bp_list_sources", {})
     assert "sources" in result
     assert "podcast" in result["sources"]
 
+
 def test_config_show():
     result = handle_tool_call("bp_config", {"action": "show"})
     assert "language" in result
+
 
 def test_unknown_tool():
     result = handle_tool_call("bp_nonexistent", {})
     assert "error" in result
 
+
 def test_fetch_feed_unknown():
     result = handle_tool_call("bp_fetch_feed", {"source": "nonexistent"})
     assert "error" in result
-
-def test_reload_config():
-    result = handle_tool_call("bp_reload_config", {})
-    assert result["status"] == "auto"
 
 
 # ── MCP Protocol Framing Tests ─────────────────────────────────────────
@@ -88,6 +90,7 @@ class TestMcpProtocolFraming:
     def test_content_length_parsing(self):
         """Standard Content-Length header is parsed correctly."""
         import json
+
         body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}).encode()
         stdin_bytes = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
@@ -100,6 +103,7 @@ class TestMcpProtocolFraming:
     def test_write_message_format(self):
         """write_message outputs correct Content-Length framing."""
         import json
+
         read_msg, write_msg, stdout = self._make_server_session(b"")
 
         test_msg = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
@@ -109,7 +113,7 @@ class TestMcpProtocolFraming:
         # Parse the output
         header_end = output.index(b"\r\n\r\n")
         header = output[:header_end].decode()
-        body = output[header_end + 4:]
+        body = output[header_end + 4 :]
 
         assert header.startswith("Content-Length:")
         content_length = int(header.split(":")[1].strip())
@@ -120,7 +124,10 @@ class TestMcpProtocolFraming:
     def test_partial_read_handling(self):
         """Body read in multiple chunks is handled correctly."""
         import json
-        body = json.dumps({"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}}).encode()
+
+        body = json.dumps(
+            {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}}
+        ).encode()
         # Split body into chunks by wrapping BytesIO with limited read
         full_input = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
@@ -146,6 +153,7 @@ class TestMcpProtocolFraming:
     def test_malformed_header_no_content_length(self):
         """Header without Content-Length tries raw JSON parse."""
         import json
+
         raw_json = json.dumps({"jsonrpc": "2.0", "id": 3, "method": "ping"}).encode()
         stdin_bytes = raw_json + b"\r\n"
 
@@ -170,7 +178,15 @@ class TestMcpProtocolFraming:
     def test_unicode_content(self):
         """Unicode in JSON body is handled correctly."""
         import json
-        body = json.dumps({"jsonrpc": "2.0", "id": 4, "method": "test", "params": {"text": "你好世界"}}).encode()
+
+        body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "test",
+                "params": {"text": "你好世界"},
+            }
+        ).encode()
         stdin_bytes = f"Content-Length: {len(body)}\r\n\r\n".encode() + body
 
         read_msg, _, _ = self._make_server_session(stdin_bytes)
@@ -180,7 +196,6 @@ class TestMcpProtocolFraming:
 
     def test_roundtrip_write_then_read(self):
         """write_message output can be read back by read_message."""
-        import json
         _, write_msg, stdout = self._make_server_session(b"")
 
         original = {"jsonrpc": "2.0", "id": 5, "result": {"tools": []}}

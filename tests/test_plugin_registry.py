@@ -1,6 +1,7 @@
 """Tests for the plugin registry system."""
+
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from builderpulse.plugins.registry import PluginRegistry, DownloaderPlugin
 

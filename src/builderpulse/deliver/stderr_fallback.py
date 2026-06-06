@@ -1,4 +1,5 @@
 """Stderr fallback delivery channel."""
+
 from __future__ import annotations
 
 import sys

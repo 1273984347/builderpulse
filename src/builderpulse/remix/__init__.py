@@ -1,4 +1,5 @@
 """BuilderPulse remix — summarization and translation."""
+
 from __future__ import annotations
 
 from .summarizer import Summarizer, get_provider

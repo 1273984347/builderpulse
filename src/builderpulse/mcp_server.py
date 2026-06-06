@@ -3,8 +3,8 @@
 Implements MCP protocol (tools/list + tools/call) without external SDK dependency.
 Compatible with Claude Code, Cursor, Continue, and any MCP client.
 """
+
 from __future__ import annotations
-import asyncio
 import json
 import logging
 import os
@@ -15,16 +15,22 @@ logger = logging.getLogger("builderpulse.mcp")
 
 # ── MCP Protocol ────────────────────────────────────────────────
 
+
 def _make_response(request_id: Any, result: Any) -> dict:
     return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
+
 def _make_error(request_id: Any, code: int, message: str) -> dict:
-    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {"code": code, "message": message},
+    }
+
 
 def run_mcp_server() -> None:
     """Run MCP server over stdio (JSON-RPC 2.0). Synchronous for Windows compatibility."""
     os.environ["BUILDERPULSE_MODE"] = "mcp"
-    import sys
 
     # Use binary mode for stdin/stdout to handle Content-Length framing
     stdin = sys.stdin.buffer
@@ -86,11 +92,14 @@ def run_mcp_server() -> None:
             params = msg.get("params", {})
 
             if method == "initialize":
-                response = _make_response(request_id, {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "builderpulse", "version": "2.0.0"},
-                })
+                response = _make_response(
+                    request_id,
+                    {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {"tools": {"listChanged": False}},
+                        "serverInfo": {"name": "builderpulse", "version": "2.0.0"},
+                    },
+                )
             elif method == "notifications/initialized":
                 continue
             elif method == "tools/list":
@@ -99,13 +108,23 @@ def run_mcp_server() -> None:
                 tool_name = params.get("name", "")
                 arguments = params.get("arguments", {})
                 result = handle_tool_call(tool_name, arguments)
-                response = _make_response(request_id, {
-                    "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
-                })
+                response = _make_response(
+                    request_id,
+                    {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": json.dumps(result, ensure_ascii=False),
+                            }
+                        ]
+                    },
+                )
             elif method == "ping":
                 response = _make_response(request_id, {})
             else:
-                response = _make_error(request_id, -32601, f"Method not found: {method}")
+                response = _make_error(
+                    request_id, -32601, f"Method not found: {method}"
+                )
 
             write_message(response)
 
@@ -117,9 +136,11 @@ def run_mcp_server() -> None:
             logger.error("Server error: %s", e)
             break
 
+
 def main():
     """Entry point for `builderpulse-mcp` command."""
     run_mcp_server()  # P0 fix: sync function, no asyncio.run()
+
 
 # ── Tool definitions ────────────────────────────────────────────
 
@@ -130,10 +151,25 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "Video/audio URL or local file path"},
-                "engine": {"type": "string", "enum": ["auto", "whisper", "whisperx", "faster-whisper"], "default": "auto"},
-                "language": {"type": "string", "enum": ["zh", "en", "auto"], "default": "auto"},
-                "output_format": {"type": "string", "enum": ["markdown", "text", "json"], "default": "markdown"},
+                "url": {
+                    "type": "string",
+                    "description": "Video/audio URL or local file path",
+                },
+                "engine": {
+                    "type": "string",
+                    "enum": ["auto", "whisper", "whisperx", "faster-whisper"],
+                    "default": "auto",
+                },
+                "language": {
+                    "type": "string",
+                    "enum": ["zh", "en", "auto"],
+                    "default": "auto",
+                },
+                "output_format": {
+                    "type": "string",
+                    "enum": ["markdown", "text", "json"],
+                    "default": "markdown",
+                },
             },
             "required": ["url"],
         },
@@ -144,10 +180,21 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "sources": {"type": "string", "default": "all", "description": "Comma-separated source names or 'all'"},
-                "language": {"type": "string", "enum": ["zh", "en", "bilingual"], "default": "zh"},
+                "sources": {
+                    "type": "string",
+                    "default": "all",
+                    "description": "Comma-separated source names or 'all'",
+                },
+                "language": {
+                    "type": "string",
+                    "enum": ["zh", "en", "bilingual"],
+                    "default": "zh",
+                },
                 "days": {"type": "integer", "default": 1},
-                "deliver": {"type": "string", "description": "Delivery channels (comma-separated)"},
+                "deliver": {
+                    "type": "string",
+                    "description": "Delivery channels (comma-separated)",
+                },
             },
         },
     },
@@ -158,7 +205,11 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "url": {"type": "string"},
-                "pipeline": {"type": "string", "default": "transcribe", "description": "Steps: transcribe,summarize,translate,deliver=CHANNEL"},
+                "pipeline": {
+                    "type": "string",
+                    "default": "transcribe",
+                    "description": "Steps: transcribe,summarize,translate,deliver=CHANNEL",
+                },
                 "deliver": {"type": "string"},
             },
             "required": ["url"],
@@ -170,7 +221,10 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "source": {"type": "string", "enum": ["twitter", "podcast", "blog", "bilibili", "youtube"]},
+                "source": {
+                    "type": "string",
+                    "enum": ["twitter", "podcast", "blog", "bilibili", "youtube"],
+                },
                 "limit": {"type": "integer", "default": 10},
                 "days": {"type": "integer", "default": 7},
             },
@@ -198,6 +252,7 @@ TOOLS = [
 
 # ── Tool handlers ───────────────────────────────────────────────
 
+
 def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Dispatch tool call to appropriate handler."""
     handlers = {
@@ -222,8 +277,15 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
         logger.error("Tool %s failed: %s", tool_name, e)
         return {"error": str(e)}
 
-def _handle_transcribe(url: str, engine: str = "auto", language: str = "auto", output_format: str = "markdown") -> dict:
+
+def _handle_transcribe(
+    url: str,
+    engine: str = "auto",
+    language: str = "auto",
+    output_format: str = "markdown",
+) -> dict:
     from builderpulse.infra.security import is_safe_url
+
     if not is_safe_url(url):
         return {"error": f"URL not allowed: {url}"}
 
@@ -249,8 +311,12 @@ def _handle_transcribe(url: str, engine: str = "auto", language: str = "auto", o
         "word_count": ctx.transcript.word_count,
     }
 
-def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None) -> dict:
+
+def _handle_digest(
+    sources: str = "all", language: str = "zh", days: int = 1, deliver: str = None
+) -> dict:
     from builderpulse.core.config_manager import ConfigManager
+
     # P2 fix (H4): delegate fetching to the shared aggregator so CLI and
     # MCP code paths don't drift.
     from builderpulse.core.source_aggregator import fetch_all_sources
@@ -260,12 +326,16 @@ def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, de
 
     result = {
         "item_count": len(items),
-        "items": [{"title": i.title, "url": i.url, "source": i.source_type} for i in items[:20]],
+        "items": [
+            {"title": i.title, "url": i.url, "source": i.source_type}
+            for i in items[:20]
+        ],
         "errors": errors,
     }
 
     if deliver:
         from builderpulse.deliver import get_channel
+
         content = "\n\n".join(f"## {i.title}\n{i.url}" for i in items[:20])
         for ch_name in deliver.split(","):
             try:
@@ -277,13 +347,23 @@ def _handle_digest(sources: str = "all", language: str = "zh", days: int = 1, de
 
     return result
 
-def _handle_process(url: str, pipeline: str = "transcribe", deliver: str = None) -> dict:
+
+def _handle_process(
+    url: str, pipeline: str = "transcribe", deliver: str = None
+) -> dict:
     from builderpulse.infra.security import is_safe_url
+
     if not is_safe_url(url):
         return {"error": f"URL not allowed: {url}"}
 
     from builderpulse.core.models import SourceRef
-    from builderpulse.core.pipeline import Pipeline, step_download, step_transcribe, step_summarize, step_deliver
+    from builderpulse.core.pipeline import (
+        Pipeline,
+        step_download,
+        step_transcribe,
+        step_summarize,
+        step_deliver,
+    )
 
     source = SourceRef.from_url(url)
     p = Pipeline()
@@ -310,34 +390,41 @@ def _handle_process(url: str, pipeline: str = "transcribe", deliver: str = None)
         "delivery_results": ctx.delivery_results,
     }
 
+
 def _handle_fetch_feed(source: str, limit: int = 10, days: int = 7) -> dict:
     from builderpulse.core.config_manager import ConfigManager
+
     cfg = ConfigManager.get_raw()
 
     src = None
     try:
         if source == "podcast":
             from builderpulse.sources.podcast import PodcastSource
+
             feeds = cfg.get("sources", {}).get("podcast", {}).get("feeds", [])
             src = PodcastSource(feeds=feeds)
             items = src.fetch(days=days, limit=limit)
         elif source == "twitter":
             from builderpulse.sources.twitter import TwitterSource
+
             accounts = cfg.get("sources", {}).get("twitter", {}).get("accounts", [])
             src = TwitterSource(accounts=accounts)
             items = src.fetch(limit=limit)
         elif source == "blog":
             from builderpulse.sources.blog import BlogSource
+
             urls = cfg.get("sources", {}).get("blog", {}).get("urls", [])
             src = BlogSource(urls=urls)
             items = src.fetch(days=days, limit=limit)
         elif source == "bilibili":
             from builderpulse.sources.bilibili import BilibiliSource
+
             users = cfg.get("sources", {}).get("bilibili", {}).get("users", [])
             src = BilibiliSource(users=users)
             items = src.fetch(limit=limit)
         elif source == "youtube":
             from builderpulse.sources.youtube import YouTubeSource
+
             src = YouTubeSource()
             items = src.fetch(limit=limit)
         else:
@@ -346,16 +433,32 @@ def _handle_fetch_feed(source: str, limit: int = 10, days: int = 7) -> dict:
         if src is not None:
             src.close()
 
-    return {"items": [{"title": i.title, "url": i.url, "content": i.content[:200]} for i in items]}
+    return {
+        "items": [
+            {"title": i.title, "url": i.url, "content": i.content[:200]} for i in items
+        ]
+    }
+
 
 def _handle_list_sources() -> dict:
     return {
         "sources": ["twitter", "podcast", "blog", "bilibili", "youtube"],
-        "delivery_channels": ["telegram", "email", "lark", "dingtalk", "discord", "wecom", "wechat", "stderr"],
+        "delivery_channels": [
+            "telegram",
+            "email",
+            "lark",
+            "dingtalk",
+            "discord",
+            "wecom",
+            "wechat",
+            "stderr",
+        ],
     }
+
 
 def _handle_config(action: str, key: str = None, value: str = None) -> dict:
     from builderpulse.core.config import Config
+
     cfg = Config()
 
     if action == "show":
@@ -363,12 +466,14 @@ def _handle_config(action: str, key: str = None, value: str = None) -> dict:
     elif action == "get" and key:
         # P0 fix: block access to sensitive keys via get
         if Config._is_sensitive(key):
-            return {"error": f"Key '{key}' is sensitive. Use 'show' with mask_secrets=True."}
+            return {
+                "error": f"Key '{key}' is sensitive. Use 'show' with mask_secrets=True."
+            }
         return {"key": key, "value": getattr(cfg, key, None)}
     elif action == "set":
         return {
             "error": "Config 'set' not supported in MCP. "
-                     "Use environment variables (BUILDERPULSE_*) or edit config.json directly."
+            "Use environment variables (BUILDERPULSE_*) or edit config.json directly."
         }
     else:
         return {"error": "Invalid config action. Valid actions: get, show."}

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone
 
 import httpx
-import pytest
 
 from builderpulse.sources.blog import BlogSource, _parse_date_utc
 from builderpulse.sources.twitter import TwitterSource
@@ -265,9 +262,6 @@ class TestTwitterSource:
             def raise_for_status(self):
                 pass
 
-        # Patch httpx.get for nitter calls (nitter uses client.get)
-        call_count = {"n": 0}
-
         def fake_get_nitter(url, **kwargs):
             if "nitter" in url:
                 return FakeNitterResponse()
@@ -398,10 +392,12 @@ class TestYouTubeSource:
 
     def test_fetch_multiple_channels(self, monkeypatch):
         """Multiple channels are processed independently."""
-        src = YouTubeSource(channels=[
-            {"id": "UC111", "name": "Channel1"},
-            {"id": "UC222", "name": "Channel2"},
-        ])
+        src = YouTubeSource(
+            channels=[
+                {"id": "UC111", "name": "Channel1"},
+                {"id": "UC222", "name": "Channel2"},
+            ]
+        )
 
         class FakeResponse:
             status_code = 200

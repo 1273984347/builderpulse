@@ -8,7 +8,7 @@ Core codes are defined as an enum; plugin codes are registered at runtime.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict
 
 
 # ── Core error codes ────────────────────────────────────────────────────

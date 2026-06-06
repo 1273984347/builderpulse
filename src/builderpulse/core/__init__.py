@@ -1,4 +1,5 @@
 """BuilderPulse core — config, state, pipeline, models, error codes."""
+
 from __future__ import annotations
 
 from .config import Config

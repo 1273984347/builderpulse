@@ -1,4 +1,5 @@
 """Tests for Bilibili downloader."""
+
 from builderpulse.core.models import SourceRef
 from builderpulse.core.shared_utils import get_mixin_key
 from builderpulse.engines.downloaders.bilibili import BilibiliDownloader

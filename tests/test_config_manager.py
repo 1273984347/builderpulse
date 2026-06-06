@@ -2,7 +2,6 @@
 
 import threading
 
-import pytest
 
 from builderpulse.core.config_manager import ConfigManager
 

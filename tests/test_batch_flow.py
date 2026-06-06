@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from builderpulse.batch.disk_guard import DiskFullError
 from builderpulse.batch.manager import BatchManager
@@ -224,10 +222,12 @@ class TestProcessBatchMultipleUrls:
         monkeypatch.setattr(mgr._disk, "check", lambda path: None)
 
         with patch("builderpulse.core.pipeline.Pipeline", mock_pipeline_cls):
-            results = mgr.process_batch([
-                "https://www.youtube.com/watch?v=abc",
-                "https://www.youtube.com/watch?v=def",
-            ])
+            results = mgr.process_batch(
+                [
+                    "https://www.youtube.com/watch?v=abc",
+                    "https://www.youtube.com/watch?v=def",
+                ]
+            )
 
         assert len(results) == 2
         assert results[0]["status"] == "done"

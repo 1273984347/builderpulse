@@ -1,8 +1,8 @@
 """yt-dlp based downloader for 1000+ sites."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from builderpulse.core.models import SourceRef, DownloadResult
 from .base import Downloader

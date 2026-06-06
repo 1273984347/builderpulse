@@ -5,6 +5,7 @@ Design goals:
 - Lazy: entry points are resolved on first access, not at import time.
 - Extensible: new plugin groups can be registered at runtime.
 """
+
 from __future__ import annotations
 
 import logging
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Protocol interfaces (runtime-checkable so isinstance works)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class DownloaderPlugin(Protocol):
@@ -60,6 +62,7 @@ _PROTOCOLS: Dict[str, type] = {
 # ---------------------------------------------------------------------------
 # Plugin Registry
 # ---------------------------------------------------------------------------
+
 
 class PluginRegistry:
     """Central registry for entry-point-based plugins.
@@ -132,7 +135,9 @@ class PluginRegistry:
             for ep in eps:
                 try:
                     obj = ep.load()
-                    instance = obj() if callable(obj) and not isinstance(obj, type) else obj
+                    instance = (
+                        obj() if callable(obj) and not isinstance(obj, type) else obj
+                    )
                     if self._validate_plugin(group, instance):
                         name = getattr(instance, "name", ep.name)
                         self._plugins[group][name] = instance
@@ -146,7 +151,9 @@ class PluginRegistry:
                         self._load_errors[group].append(msg)
                 except Exception as exc:
                     msg = f"{ep.name}: {exc}"
-                    logger.warning("Failed to load plugin %s.%s: %s", group, ep.name, exc)
+                    logger.warning(
+                        "Failed to load plugin %s.%s: %s", group, ep.name, exc
+                    )
                     self._load_errors[group].append(msg)
 
             self._loaded_groups.add(group)
@@ -177,9 +184,7 @@ class PluginRegistry:
         """
         if not self._validate_plugin(group, plugin):
             protocol = _PROTOCOLS.get(group, "unknown")
-            raise ValueError(
-                f"Plugin {plugin!r} does not satisfy {protocol} protocol"
-            )
+            raise ValueError(f"Plugin {plugin!r} does not satisfy {protocol} protocol")
         name = getattr(plugin, "name", repr(plugin))
         with self._lock:
             self._plugins.setdefault(group, {})[name] = plugin

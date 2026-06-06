@@ -1,9 +1,9 @@
 """Abstract base class for video/audio downloaders."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
 
 from builderpulse.core.models import SourceRef, DownloadResult
 

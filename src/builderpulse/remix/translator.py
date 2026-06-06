@@ -1,6 +1,8 @@
 """Translation wrapper using LLM provider."""
+
 from __future__ import annotations
 from .summarizer import LLMProvider
+
 
 class Translator:
     def __init__(self, provider: LLMProvider):
