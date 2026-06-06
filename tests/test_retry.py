@@ -54,7 +54,7 @@ def test_retry_non_retryable_wraps_in_exhausted():
     assert isinstance(exc_info.value.history[0][1], TypeError)
 
 
-@patch("builderpulse.batch.retry.time.sleep")
+@patch("time.sleep")
 def test_retry_exponential_backoff(mock_sleep):
     """Delays increase exponentially."""
     fn = Mock(side_effect=ConnectionError("fail"))
@@ -76,7 +76,7 @@ def test_retry_exponential_backoff(mock_sleep):
     mock_sleep.assert_any_call(4.0)
 
 
-@patch("builderpulse.batch.retry.time.sleep")
+@patch("time.sleep")
 def test_retry_backoff_capped_at_60(mock_sleep):
     """Backoff delay is capped at 60 seconds."""
     fn = Mock(side_effect=ConnectionError("fail"))
@@ -94,7 +94,7 @@ def test_retry_backoff_capped_at_60(mock_sleep):
     mock_sleep.assert_any_call(60.0)
 
 
-@patch("builderpulse.batch.retry.time.sleep")
+@patch("time.sleep")
 def test_retry_with_span(mock_sleep):
     """span.add_event is called on each retry."""
     span = Mock()
