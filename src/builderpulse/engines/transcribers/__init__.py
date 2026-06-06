@@ -35,18 +35,35 @@ def get_transcriber(
 
 
 def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcriber:
-    # Validate name first (cheap check) so callers get a clear ValueError on typos
-    # before we touch the filesystem / ffmpeg.
+    # 1. Validate name (cheap, no side effects) so unknown-engine errors
+    #    surface immediately, independent of platform tooling.
     if name not in ("whisper", "whisperx", "faster_whisper"):
         raise ValueError(
             f"Unknown engine: {name}. Valid: whisper, whisperx, faster_whisper"
         )
 
-    # P1 fix: verify ffmpeg is available before instantiating the engine.
-    # Done after name validation so that unknown-engine errors surface first
-    # regardless of platform tooling, and so the auto-detection loop can
-    # distinguish "no engine installed" (ImportError) from "ffmpeg missing"
-    # (RuntimeError).
+    # 2. Import the engine module BEFORE checking ffmpeg. If the engine
+    #    isn't installed, the ImportError will propagate to the auto loop's
+    #    `except ImportError`, letting it try the next engine. If we
+    #    checked ffmpeg first, a missing ffmpeg would raise RuntimeError
+    #    that the auto loop does not catch — making it impossible to
+    #    distinguish "no engine" from "ffmpeg missing" in `auto` mode.
+    if name == "whisper":
+        from .whisper import WhisperTranscriber
+
+        cls = WhisperTranscriber
+    elif name == "whisperx":
+        from .whisperx import WhisperXTranscriber
+
+        cls = WhisperXTranscriber
+    else:  # faster_whisper
+        from .faster_whisper import FasterWhisperTranscriber
+
+        cls = FasterWhisperTranscriber
+
+    # 3. Verify ffmpeg is available before instantiating the engine.
+    #    (P1 fix: fail fast rather than crashing later in the transcribe
+    #    call with a confusing subprocess error.)
     from builderpulse.infra.platform_compat import find_ffmpeg
 
     if not find_ffmpeg():
@@ -54,15 +71,4 @@ def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcr
             "FFmpeg not found. Install it: https://ffmpeg.org/download.html"
         )
 
-    if name == "whisper":
-        from .whisper import WhisperTranscriber
-
-        return WhisperTranscriber(model=model, device=device)
-    elif name == "whisperx":
-        from .whisperx import WhisperXTranscriber
-
-        return WhisperXTranscriber(model=model, device=device)
-    else:  # faster_whisper
-        from .faster_whisper import FasterWhisperTranscriber
-
-        return FasterWhisperTranscriber(model=model, device=device)
+    return cls(model=model, device=device)
