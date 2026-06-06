@@ -9,6 +9,10 @@ build/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.venv/
+.venv-*/
+venv/
+env/
 *.db
 *.log
 .env
@@ -16,6 +20,9 @@ build/
 Thumbs.db
 output/
 tmp/
+.coverage
+coverage.xml
+htmlcov/
 
 # Agent configs (user-specific, not for open source)
 .claude/

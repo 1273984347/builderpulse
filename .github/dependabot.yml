@@ -1,0 +1,63 @@
+# Dependabot configuration
+# Keeps GitHub Actions and Python dependencies up to date.
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+
+updates:
+  # GitHub Actions versions in .github/workflows/*.yml
+  # - addresses the Node.js 20 deprecation warning (actions must move to Node.js 24 by 2026-09-16)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    # Group all action updates into one PR per week to reduce noise
+    groups:
+      actions-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 5
+    # Auto-rebase PRs to avoid conflicts
+    rebase-strategy: "auto"
+
+  # Python dependencies in pyproject.toml
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Shanghai"
+    # Group all dev/runtime updates into one PR
+    groups:
+      pip-all:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+    # Ignore major version bumps of LLM/ML libraries (breaking changes are
+    # high-risk; review manually instead of auto-merging).
+    ignore:
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "anthropic"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "pydantic"
+        update-types: ["version-update:semver-major"]

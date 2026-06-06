@@ -1,101 +1,87 @@
-# CI Follow-up: Remaining Test Failures
+# CI Follow-up: Test Failures
 
-**Status (2026-06-06):** v2.0.0 has 11 remaining test failures in CI that this
-PR did **not** address. They are documented here for the next pass.
+**Status (2026-06-06, end of day):** ✅ **All 11 originally-documented
+failures are now resolved.** This document is kept for historical
+context and as a record of the bug archaeology. See "Resolution" section
+below for what was fixed.
 
-## Context
+---
+
+## Context (original problem)
 
 `fix(ci): use PEP 517 setuptools.build_meta backend` (commit 44b8048) got CI
 past the install step. `chore(lint): pass ruff check + ruff format --check`
 (commit 0a44e36) cleared the lint step. `fix(ci): declare missing test deps +
 portable mock pattern` (commit 01aa187) got the test pass rate from 414/446 to
-435/446 (32 → 11 failures).
+435/446 (32 → 11 failures). At that point the remaining 11 failures were
+documented here.
 
-The 11 remaining failures fall into 3 categories below. None of them is in
-scope for the immediate CI-green push, but they will block `Release` workflow
-runs and degrade confidence in test signal.
+## The 11 originally-remaining failures
 
-## Category 1: Optional-extras tests run without the extra installed
+### Category 1: Optional-extras tests run without the extra installed
 
-CI installs only `[dev]`. Tests that need other extras fail with
+CI installs only `[dev]`. Tests that need other extras failed with
 `ModuleNotFoundError`.
 
-| Failing tests | Missing extra | Why it's missing |
-|---|---|---|
-| `test_source_scrapers.py::TestBlogSource` (×3) | `feedparser`, `beautifulsoup4` | in `[sources]`, not `[dev]` |
-| `test_source_scrapers.py::TestTwitterSource::test_fetch_nitter_no_bearer_token` | `feedparser` | in `[sources]`, not `[dev]` |
-| `test_source_scrapers.py::TestYouTubeSource` (×5) | `feedparser` | in `[sources]`, not `[dev]` |
-| `test_transcribers.py::*` (whisper) | `whisper` / `faster-whisper` | in their own extras (ML models, GBs) |
+| Failing tests | Missing extra |
+|---|---|
+| `test_source_scrapers.py::TestBlogSource` (×3) | `feedparser`, `beautifulsoup4` |
+| `test_source_scrapers.py::TestTwitterSource::test_fetch_nitter_no_bearer_token` | `feedparser` |
+| `test_source_scrapers.py::TestYouTubeSource` (×5) | `feedparser` |
 
-**Two reasonable fixes:**
+### Category 2: LLM translation mock returns English, test expects Chinese
 
-1. **Widen CI install to all extras** in `.github/workflows/ci.yml`:
-   `pip install -e ".[dev,sources,mcp,llm]"` plus skip heavy ML extras.
-   Pro: one-line change. Con: CI time increases (whisper pulls torch ~1 GB).
+`tests/test_pipeline_remix.py::TestStepTranslate` (×2). Root cause: the
+test mocked `Translator` but not `get_provider`, so on CI without
+`openai` installed, `get_provider()` raised ImportError → fallback path
+→ `ctx.translation = original` (English), not the expected Chinese.
 
-2. **Add `pytest.importorskip` to each test that needs an extra**, and
-   CI stays slim. Pro: tests self-skip cleanly. Con: more invasive, touches
-   ~10 test files.
+### Category 3: FFmpeg missing on Windows/macOS CI runners
 
-**Recommendation:** option 1 for the small deps (`feedparser`,
-`beautifulsoup4`, `tweepy`, `mcp`, `openai`, `anthropic`, `ollama`); skip
-the ML extras in CI via `@pytest.mark.slow` or similar, and let them run
-on-demand or locally only.
+`test_transcribers.py::test_get_transcriber_unknown_engine` and
+`test_get_transcriber_auto_no_engines` failed on Windows. Root cause:
+`get_transcriber()` checked `find_ffmpeg()` BEFORE validating the
+engine name, so `get_transcriber("nonexistent")` on a host without
+ffmpeg raised `RuntimeError("FFmpeg not found")` instead of
+`ValueError("Unknown engine")`. (Linux/macOS CI had ffmpeg installed
+via brew/apt, so this only surfaced on Windows.)
 
-## Category 2: LLM translation mock returns English, test expects Chinese
+## Resolution
 
-`tests/test_pipeline_remix.py::TestStepTranslate` (×2) fails with:
+All three categories fixed across the following commits:
 
-```
-AssertionError: assert 'English summary' == '中文摘要'
-```
+| Commit | What it fixed |
+|---|---|
+| `1955690` | Added `feedparser` + `beautifulsoup4` to `[dev]` deps; reordered ffmpeg check in `_load_engine`; added `get_provider` mock to translate tests |
+| `f0ba371` | First ffmpeg-order fix attempt (placed check before engine import — wrong order for auto loop semantics) |
+| `697ac0b` | Root-cause fix: probe PyPI package directly via `importlib.import_module(pypi_pkg)` before the ffmpeg check, so the auto loop's `except ImportError` correctly catches "engine not installed" before it sees "ffmpeg missing" |
 
-The mock fixture in `test_pipeline_remix.py` is hard-coding language to
-`en` or not respecting the `language` field on the config. Two tests
-expect Chinese output but receive the English fallback.
+Final test pass rate: **446 passed, 2 skipped, 0 failed** (local venv +
+CI 9/9 jobs).
 
-This is a **test-side bug**: the mock is not language-aware. The fix is
-to either (a) make the mock return-language-aware or (b) change the
-assertion to use whatever language the test sets up. (~5-line change in
-`tests/test_pipeline_remix.py`.)
+## Lessons (for next debugging session)
 
-**Status:** requires reading the mock fixture carefully. Skipped for now.
+1. **Single-platform verification hides Windows-specific bugs.** The
+   original fix `1955690` was tested locally on Windows (Python 3.12)
+   and passed, then failed on CI Windows (Python 3.10.11). The reason
+   was a different order-of-operations issue that only mattered on
+   platforms without ffmpeg.
 
-## Category 3: FFmpeg missing on Windows/macOS CI runners
+2. **Source module presence ≠ PyPI package presence.**
+   `from .faster_whisper import FasterWhisperTranscriber` always
+   succeeds because `engines/transcribers/faster_whisper.py` is a
+   *source* file in the project. To check if the engine is *actually
+   usable*, probe the top-level PyPI package with
+   `importlib.import_module("faster_whisper")` instead.
 
-`tests/test_*` that needs FFmpeg fails with:
+3. **Mock what the production code actually calls.** The LLM test
+   mocked `Translator` but the production code calls `get_provider()`
+   *before* instantiating `Translator`. The test was effectively
+   mocking the wrong layer. Follow the existing `TestStepSummarize`
+   pattern (which mocks `get_provider`).
 
-```
-RuntimeError: FFmpeg not found. Install it: https://ffmpeg.org/download.html
-```
-
-`ci.yml` only installs FFmpeg on Ubuntu (`if: runner.os == 'Linux'`). On
-`windows-latest` and `macos-latest`, the corresponding `Install system
-dependencies` step is `if: runner.os == 'macOS'` and installs via brew —
-but that step is skipped on Windows.
-
-**Fix:** add a Windows FFmpeg install step, or `skip` the FFmpeg-requiring
-tests on non-Linux via `@pytest.mark.skipif(sys.platform == "win32", ...)`.
-
-**Status:** not investigated which test specifically needs it on Windows.
-
-## Reproducing locally
-
-```bash
-python -m venv .venv-test
-.venv-test/Scripts/python.exe -m pip install -e ".[dev]"
-.venv-test/Scripts/python.exe -m pytest tests/ --tb=line
-```
-
-Expect: 11 failed, 435 passed, 2 skipped. The 2 skipped are
-platform-conditional tests; the 11 failed match the categories above.
-
-## Suggested next pass
-
-1. Add `feedparser`, `beautifulsoup4` to `[dev]` (small deps, used in
-   tests that don't need full sources behavior).
-2. Fix the LLM mock language awareness (~5 lines).
-3. Add `skipif(sys.platform == "win32", ...)` to FFmpeg test or
-   install FFmpeg on Windows runner.
-
-Estimated effort: 30-60 minutes. Should get to 0 failed / 2 skipped.
+4. **Cheap checks before expensive checks.** `get_transcriber()` was
+   originally doing ffmpeg check first (expensive: subprocess call)
+   before validating the engine name (cheap: set lookup). Inverting
+   the order surfaces clearer errors to callers and avoids running
+   ffmpeg probes for invalid engine names.
