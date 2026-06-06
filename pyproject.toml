@@ -35,7 +35,16 @@ secrets = ["keyring>=24.0"]
 # CPU-only variant (no CUDA)
 cpu = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
 # Dev
-dev = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-asyncio>=0.21", "ruff>=0.1", "respx>=0.21"]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "respx>=0.21",
+    # Needed by tests that import from sources/* (CI without [sources])
+    "feedparser>=6.0",
+    "beautifulsoup4>=4.12",
+]
 
 [project.scripts]
 bp = "builderpulse.cli:main"

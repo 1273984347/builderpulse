@@ -78,8 +78,11 @@ class TestStepTranslate:
 
     @patch("builderpulse.core.pipeline.time.sleep", return_value=None)
     @patch("builderpulse.remix.translator.Translator")
-    def test_step_translate_calls_llm(self, MockTranslator, mock_sleep):
+    @patch("builderpulse.remix.summarizer.get_provider")
+    def test_step_translate_calls_llm(self, mock_prov, MockTranslator, mock_sleep):
         ctx = _make_ctx(summary="English summary")
+        mock_provider = Mock()
+        mock_prov.return_value = mock_provider
         mock_translator = Mock()
         mock_translator.translate.return_value = "中文摘要"
         MockTranslator.return_value = mock_translator
@@ -91,8 +94,13 @@ class TestStepTranslate:
 
     @patch("builderpulse.core.pipeline.time.sleep", return_value=None)
     @patch("builderpulse.remix.translator.Translator")
-    def test_step_translate_fallback_on_failure(self, MockTranslator, mock_sleep):
+    @patch("builderpulse.remix.summarizer.get_provider")
+    def test_step_translate_fallback_on_failure(
+        self, mock_prov, MockTranslator, mock_sleep
+    ):
         ctx = _make_ctx(summary="English summary")
+        mock_provider = Mock()
+        mock_prov.return_value = mock_provider
         mock_translator = Mock()
         mock_translator.translate.side_effect = Exception("LLM error")
         MockTranslator.return_value = mock_translator
@@ -104,11 +112,14 @@ class TestStepTranslate:
 
     @patch("builderpulse.core.pipeline.time.sleep", return_value=None)
     @patch("builderpulse.remix.translator.Translator")
+    @patch("builderpulse.remix.summarizer.get_provider")
     def test_step_translate_no_summary_uses_transcript(
-        self, MockTranslator, mock_sleep
+        self, mock_prov, MockTranslator, mock_sleep
     ):
         ctx = _make_ctx(transcript_text="raw transcript")
         ctx.summary = None
+        mock_provider = Mock()
+        mock_prov.return_value = mock_provider
         mock_translator = Mock()
         mock_translator.translate.return_value = "翻译结果"
         MockTranslator.return_value = mock_translator

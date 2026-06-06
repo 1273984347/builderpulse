@@ -20,14 +20,6 @@ def get_transcriber(
     device: str = "cpu",
 ) -> Transcriber:
     """Get a transcriber instance. Auto-detects available engine if engine="auto"."""
-    # P1 fix: verify ffmpeg is available before returning a transcriber
-    from builderpulse.infra.platform_compat import find_ffmpeg
-
-    if not find_ffmpeg():
-        raise RuntimeError(
-            "FFmpeg not found. Install it: https://ffmpeg.org/download.html"
-        )
-
     if engine == "auto":
         for name in ["faster_whisper", "whisperx", "whisper"]:
             try:
@@ -43,6 +35,25 @@ def get_transcriber(
 
 
 def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcriber:
+    # Validate name first (cheap check) so callers get a clear ValueError on typos
+    # before we touch the filesystem / ffmpeg.
+    if name not in ("whisper", "whisperx", "faster_whisper"):
+        raise ValueError(
+            f"Unknown engine: {name}. Valid: whisper, whisperx, faster_whisper"
+        )
+
+    # P1 fix: verify ffmpeg is available before instantiating the engine.
+    # Done after name validation so that unknown-engine errors surface first
+    # regardless of platform tooling, and so the auto-detection loop can
+    # distinguish "no engine installed" (ImportError) from "ffmpeg missing"
+    # (RuntimeError).
+    from builderpulse.infra.platform_compat import find_ffmpeg
+
+    if not find_ffmpeg():
+        raise RuntimeError(
+            "FFmpeg not found. Install it: https://ffmpeg.org/download.html"
+        )
+
     if name == "whisper":
         from .whisper import WhisperTranscriber
 
@@ -51,9 +62,7 @@ def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcr
         from .whisperx import WhisperXTranscriber
 
         return WhisperXTranscriber(model=model, device=device)
-    elif name == "faster_whisper":
+    else:  # faster_whisper
         from .faster_whisper import FasterWhisperTranscriber
 
         return FasterWhisperTranscriber(model=model, device=device)
-    else:
-        raise ValueError(f"Unknown engine: {name}")
