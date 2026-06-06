@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 
 from .base import Transcriber
@@ -12,6 +13,16 @@ __all__ = [
 ]
 
 logger = logging.getLogger("builderpulse.transcribers")
+
+
+# Map engine name → top-level PyPI package name that backs it. Probing
+# this lets us distinguish "engine not installed" (ImportError, caught by
+# the auto loop) from "ffmpeg missing" (RuntimeError, surfaces explicitly).
+_ENGINE_PYPI_PACKAGES = {
+    "whisper": "whisper",
+    "whisperx": "whisperx",
+    "faster_whisper": "faster_whisper",
+}
 
 
 def get_transcriber(
@@ -37,29 +48,26 @@ def get_transcriber(
 def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcriber:
     # 1. Validate name (cheap, no side effects) so unknown-engine errors
     #    surface immediately, independent of platform tooling.
-    if name not in ("whisper", "whisperx", "faster_whisper"):
+    if name not in _ENGINE_PYPI_PACKAGES:
         raise ValueError(
-            f"Unknown engine: {name}. Valid: whisper, whisperx, faster_whisper"
+            f"Unknown engine: {name}. Valid: {', '.join(_ENGINE_PYPI_PACKAGES)}"
         )
 
-    # 2. Import the engine module BEFORE checking ffmpeg. If the engine
-    #    isn't installed, the ImportError will propagate to the auto loop's
-    #    `except ImportError`, letting it try the next engine. If we
-    #    checked ffmpeg first, a missing ffmpeg would raise RuntimeError
-    #    that the auto loop does not catch — making it impossible to
-    #    distinguish "no engine" from "ffmpeg missing" in `auto` mode.
-    if name == "whisper":
-        from .whisper import WhisperTranscriber
-
-        cls = WhisperTranscriber
-    elif name == "whisperx":
-        from .whisperx import WhisperXTranscriber
-
-        cls = WhisperXTranscriber
-    else:  # faster_whisper
-        from .faster_whisper import FasterWhisperTranscriber
-
-        cls = FasterWhisperTranscriber
+    # 2. Probe whether the engine's PyPI package is installed. If not,
+    #    raise ImportError so the auto loop's `except ImportError` can try
+    #    the next engine. This must happen BEFORE the ffmpeg check — the
+    #    `from .X import X` lines below succeed regardless of whether the
+    #    PyPI package is installed (because the wrapper source module is
+    #    part of this project), so they cannot be used to detect
+    #    "engine not available".
+    pypi_pkg = _ENGINE_PYPI_PACKAGES[name]
+    try:
+        importlib.import_module(pypi_pkg)
+    except ImportError as e:
+        raise ImportError(
+            f"{pypi_pkg} not installed. "
+            f"Run: pip install builderpulse[{name.replace('_', '-')}]"
+        ) from e
 
     # 3. Verify ffmpeg is available before instantiating the engine.
     #    (P1 fix: fail fast rather than crashing later in the transcribe
@@ -71,4 +79,16 @@ def _load_engine(name: str, model: str = "base", device: str = "cpu") -> Transcr
             "FFmpeg not found. Install it: https://ffmpeg.org/download.html"
         )
 
-    return cls(model=model, device=device)
+    # 4. Instantiate the engine class.
+    if name == "whisper":
+        from .whisper import WhisperTranscriber
+
+        return WhisperTranscriber(model=model, device=device)
+    elif name == "whisperx":
+        from .whisperx import WhisperXTranscriber
+
+        return WhisperXTranscriber(model=model, device=device)
+    else:  # faster_whisper
+        from .faster_whisper import FasterWhisperTranscriber
+
+        return FasterWhisperTranscriber(model=model, device=device)
