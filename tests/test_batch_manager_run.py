@@ -52,13 +52,20 @@ class TestRunWithOverrides:
         when credentials are configured (or no credentials are required
         for a non-experimental, non-credentialed source).
         """
+        from builderpulse.core.config import Config
+
         mgr = BatchManager(db_path=tmp_path / "cache.db")
 
         # github_trending is not experimental and has no required creds,
         # so the override should be accepted without error.
         caplog.set_level(logging.INFO, logger="builderpulse.batch")
-        with caplog.at_level(logging.INFO):
-            mgr.run(sources_override=["github_trending"])
+        # CI has no ~/.builderpulse/config.json — mock ConfigManager.get()
+        with patch(
+            "builderpulse.core.config_manager.ConfigManager.get",
+            return_value=Config(),
+        ):
+            with caplog.at_level(logging.INFO):
+                mgr.run(sources_override=["github_trending"])
 
         mgr.shutdown()
         # No ERROR logs expected.
