@@ -1,0 +1,45 @@
+name: Nightly Smoke
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3am UTC daily
+  workflow_dispatch:  # manual trigger
+
+# CodeQL: principle of least privilege — only read repo contents.
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-smoke-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-smoke-pip-
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run smoke tests
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.SMOKE_TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.SMOKE_TWITCH_CLIENT_SECRET }}
+          NOTION_TOKEN: ${{ secrets.SMOKE_NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.SMOKE_NOTION_DATABASE_ID }}
+          SLACK_WEBHOOK: ${{ secrets.SMOKE_SLACK_WEBHOOK }}
+          BARK_DEVICE_KEY: ${{ secrets.SMOKE_BARK_DEVICE_KEY }}
+          WEBHOOK_URL: ${{ secrets.SMOKE_WEBHOOK_URL }}
+        run: pytest -m smoke --tb=short -v

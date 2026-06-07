@@ -62,4 +62,5 @@ pythonpath = ["src"]
 asyncio_mode = "auto"
 markers = [
     "asyncio: marks tests as async (requires pytest-asyncio)",
+    "smoke: live integration smoke tests (run via nightly smoke workflow; require SMOKE_* secrets)",
 ]
