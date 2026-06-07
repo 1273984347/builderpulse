@@ -41,6 +41,7 @@ dev = [
     "pytest-asyncio>=0.21",
     "ruff>=0.1",
     "respx>=0.21",
+    "tomli>=2.0",  # for scripts/check_entry_points_sorted.py on 3.9/3.10
     # Needed by tests that import from sources/* (CI without [sources])
     "feedparser>=6.0",
     "beautifulsoup4>=4.12",
