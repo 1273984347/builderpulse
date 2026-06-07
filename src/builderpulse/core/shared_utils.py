@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 # The mixin key is derived from Bilibili's nav response and rotates server-side
 # every few months; 30 min is far shorter than the rotation interval, so cache
 # hit rate is high in steady state and stale-key risk is bounded.
+#
+# TODO(v2.2+): Background proactive refresh when TTL < 10% remaining.
+# Tracked: https://github.com/1273984347/builderpulse/issues/XXX
+# (deferred from v2.0.1 patch scope per spec §2 — needs timer/thread
+# management not appropriate for a tiny patch.)
 WBI_CACHE_TTL_SECONDS: int = 30 * 60
 
 # Module-level cache state. Dict (not a custom class) keeps the public surface
