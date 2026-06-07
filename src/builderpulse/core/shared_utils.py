@@ -130,17 +130,28 @@ def _fetch_wbi_key_from_bilibili(client: httpx.Client) -> str:
         client: httpx.Client used to call the Bilibili nav endpoint.
 
     Returns:
-        The 32-char mixin key, or the result of ``get_mixin_key("")`` if the
-        nav response is missing ``wbi_img`` (the caller treats this as a
-        transient error and the next refresh will retry).
+        The 32-char mixin key.
+
+    Raises:
+        RuntimeError: If the nav response is missing ``wbi_img``,
+            ``img_url``, or ``sub_url`` (or returns empty strings for
+            them). The caller (:func:`get_wbi_key`) does not store the
+            cache value on exception, so the next call will retry —
+            preferable to caching an empty/garbage key for 30 min and
+            silently producing invalid signatures (-6 errors).
     """
     nav = client.get(_NAV_URL).json()
     wbi_img = nav.get("data", {}).get("wbi_img", {})
     img_url = wbi_img.get("img_url", "")
     sub_url = wbi_img.get("sub_url", "")
 
-    img_key = img_url.split("/")[-1].split(".")[0] if img_url else ""
-    sub_key = sub_url.split("/")[-1].split(".")[0] if sub_url else ""
+    if not img_url or not sub_url:
+        raise RuntimeError(
+            "Bilibili nav response missing wbi_img/img_url/sub_url"
+        )
+
+    img_key = img_url.split("/")[-1].split(".")[0]
+    sub_key = sub_url.split("/")[-1].split(".")[0]
 
     return get_mixin_key(img_key + sub_key)
 

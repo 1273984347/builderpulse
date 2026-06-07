@@ -96,6 +96,31 @@ def test_cache_invalidation_on_minus_six():
     assert shared_utils._wbi_cache["fetched_at"] == 0.0
 
 
+# -- 3b. fetch failure must NOT poison the cache (regression guard for C1) --
+
+
+def test_empty_nav_response_raises_and_does_not_cache():
+    """When nav response is missing wbi_img, get_wbi_key raises and does NOT
+    cache the empty result (regression guard for the C1 bug).
+
+    Previously the fetcher returned ``get_mixin_key("")`` on missing wbi_img,
+    which was then cached for 30 min and used to sign every request —
+    producing invalid signatures (-6) with no path to recovery until TTL
+    expiry. The fix: fetcher raises RuntimeError, caller skips the cache
+    assignment, next call retries.
+    """
+    client = MagicMock(name="client")
+    # Nav response has data{} but no wbi_img key
+    client.get.return_value.json.return_value = {"data": {}}
+
+    with pytest.raises(RuntimeError, match="missing wbi_img"):
+        get_wbi_key(client)
+
+    # Cache must NOT have been populated with an empty/garbage key
+    assert shared_utils._wbi_cache["key"] is None
+    assert shared_utils._wbi_cache["fetched_at"] == 0.0
+
+
 # -- 4. concurrent refresh serializes (only 1 fetch under N threads) --
 
 
