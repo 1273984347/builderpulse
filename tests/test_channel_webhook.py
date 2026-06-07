@@ -7,6 +7,7 @@ Covers:
 - Custom method (PUT) and headers are forwarded
 - Missing url → DEBUG log + return False (no raise)
 """
+
 from __future__ import annotations
 
 import json
@@ -62,7 +63,9 @@ def test_deliver_returns_true_on_2xx(webhook):
             mock.post("https://example.com/webhook").mock(
                 return_value=httpx.Response(status)
             )
-            assert webhook.deliver({"x": 1}) is True, f"status {status} should return True"
+            assert webhook.deliver({"x": 1}) is True, (
+                f"status {status} should return True"
+            )
 
 
 def test_deliver_returns_false_on_4xx_5xx(webhook):
@@ -72,7 +75,9 @@ def test_deliver_returns_false_on_4xx_5xx(webhook):
             mock.post("https://example.com/webhook").mock(
                 return_value=httpx.Response(status)
             )
-            assert webhook.deliver({"x": 1}) is False, f"status {status} should return False"
+            assert webhook.deliver({"x": 1}) is False, (
+                f"status {status} should return False"
+            )
 
 
 def test_custom_method_and_headers():
@@ -102,8 +107,9 @@ def test_missing_url_logs_debug_and_returns_false(caplog):
 
     assert result is False
     # Verify a debug record was emitted that mentions the missing url
-    debug_msgs = [r.getMessage().lower() for r in caplog.records if r.levelno == logging.DEBUG]
+    debug_msgs = [
+        r.getMessage().lower() for r in caplog.records if r.levelno == logging.DEBUG
+    ]
     assert any(
-        "url" in m and ("missing" in m or "skip" in m or "not" in m)
-        for m in debug_msgs
+        "url" in m and ("missing" in m or "skip" in m or "not" in m) for m in debug_msgs
     ), f"expected DEBUG log about missing url, got: {debug_msgs}"

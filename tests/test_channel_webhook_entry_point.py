@@ -6,6 +6,7 @@ conformance directly (import + isinstance). The full entry-point round-trip
 ``scripts/check_entry_points_sorted.py`` plus integration tests, and by
 the registration batch in Task 23.
 """
+
 from __future__ import annotations
 
 

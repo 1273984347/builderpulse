@@ -7,6 +7,7 @@ Implements:
 
 Reference: docs/superpowers/specs/2026-06-07-builderpulse-v2-roadmap-design.md §3.2
 """
+
 from __future__ import annotations
 
 import logging
