@@ -14,6 +14,7 @@ from .slack import SlackChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
+from .webhook import WebhookChannel
 
 _CHANNELS = {
     "bark": BarkChannel,
@@ -26,6 +27,7 @@ _CHANNELS = {
     "slack": SlackChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
+    "webhook": WebhookChannel,
     "stderr": StderrChannel,
 }
 
