@@ -12,6 +12,7 @@ Implements:
 
 Reference: docs/superpowers/specs/2026-06-07-builderpulse-v2-roadmap-design.md §3.1
 """
+
 from __future__ import annotations
 
 import logging
@@ -197,7 +198,9 @@ class TwitchSource:
             return []
 
         if not self.channel_logins:
-            logger.debug("Twitch source %s: no channel_logins configured; nothing to fetch")
+            logger.debug(
+                "Twitch source %s: no channel_logins configured; nothing to fetch"
+            )
             return []
 
         try:
@@ -218,9 +221,7 @@ class TwitchSource:
                     if user_ids:
                         return self._fetch_videos(user_ids)
                 except httpx.HTTPStatusError as exc2:
-                    logger.error(
-                        "Twitch still failing after token refresh: %s", exc2
-                    )
+                    logger.error("Twitch still failing after token refresh: %s", exc2)
                     return []
                 return []
             logger.error("Twitch HTTP error: %s", exc)
@@ -262,7 +263,9 @@ class TwitchSource:
         Uses the batch form ``?login=a&login=b`` to minimise rate-limit
         point cost (one call returns up to 100 logins).
         """
-        params: list[tuple[str, str]] = [("login", login) for login in self.channel_logins]
+        params: list[tuple[str, str]] = [
+            ("login", login) for login in self.channel_logins
+        ]
         resp = self._client.get(
             "https://api.twitch.tv/helix/users",
             params=params,

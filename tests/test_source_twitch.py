@@ -8,6 +8,7 @@ Covers:
 - Missing-credential behavior: DEBUG log + skip (no raise, no block)
 - Log sanitization: client_secret never appears in logs
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,7 +55,9 @@ def _reset_token_cache():
 def test_channel_logins_normalized_to_lowercase():
     """Config stores logins in lowercase; lookup is case-insensitive."""
     src = TwitchSource(
-        client_id="x", client_secret="y", channel_logins=["Anthropic", "OPENAI", "MixedCase"]
+        client_id="x",
+        client_secret="y",
+        channel_logins=["Anthropic", "OPENAI", "MixedCase"],
     )
     assert src.channel_logins == ["anthropic", "openai", "mixedcase"]
 
@@ -97,7 +100,9 @@ def test_fetch_uses_user_id_not_login(twitch_source):
 
         # Get Videos must be called with user_id=12345 (numeric id from Get Users),
         # NOT with login=anthropic
-        videos_call = next(c for c in mock.calls if "helix/videos" in str(c.request.url))
+        videos_call = next(
+            c for c in mock.calls if "helix/videos" in str(c.request.url)
+        )
         url_str = str(videos_call.request.url)
         assert "user_id=12345" in url_str
         # Should NOT include login=anthropic in the videos URL
@@ -114,7 +119,9 @@ def test_token_refresh_on_401(twitch_source):
     """When Get Users returns 401, refresh the token and retry once."""
     token_payload = {"access_token": "fresh_token", "expires_in": 5184000}
     users_unauthorized = httpx.Response(401, json={"error": "Unauthorized"})
-    users_success = httpx.Response(200, json={"data": [{"id": "12345", "login": "anthropic"}]})
+    users_success = httpx.Response(
+        200, json={"data": [{"id": "12345", "login": "anthropic"}]}
+    )
     videos_ok = httpx.Response(200, json={"data": []})
 
     with respx.mock(assert_all_called=False) as mock:
@@ -129,9 +136,7 @@ def test_token_refresh_on_401(twitch_source):
                 users_success,
             ]
         )
-        mock.get("https://api.twitch.tv/helix/videos").mock(
-            return_value=videos_ok
-        )
+        mock.get("https://api.twitch.tv/helix/videos").mock(return_value=videos_ok)
 
         # Must not raise — 401 → refresh + retry
         items = twitch_source.fetch()
@@ -143,7 +148,9 @@ def test_token_refresh_on_401(twitch_source):
         )
         # Should have called Get Users twice (401 then 200)
         users_calls = [c for c in mock.calls if "helix/users" in str(c.request.url)]
-        assert len(users_calls) == 2, f"Expected 2 Get Users calls, got {len(users_calls)}"
+        assert len(users_calls) == 2, (
+            f"Expected 2 Get Users calls, got {len(users_calls)}"
+        )
 
     # Should not raise
     assert items is not None
@@ -163,7 +170,9 @@ def test_token_cache_thread_safety():
         with refresh_lock:
             refresh_count[0] += 1
         time.sleep(0.1)  # simulate network latency
-        return httpx.Response(200, json={"access_token": "new_token", "expires_in": 5184000})
+        return httpx.Response(
+            200, json={"access_token": "new_token", "expires_in": 5184000}
+        )
 
     # Each thread: fetch() may call Get Users up to 2 times (initial 401 + retry)
     # so provide enough 401s for 5 threads × 2 attempts = 10, plus a final OK.
@@ -175,7 +184,9 @@ def test_token_cache_thread_safety():
     side_effects = [users_401] * 15 + [users_ok]
 
     with respx.mock(assert_all_called=False) as mock:
-        mock.post("https://id.twitch.tv/oauth2/token").mock(side_effect=slow_token_response)
+        mock.post("https://id.twitch.tv/oauth2/token").mock(
+            side_effect=slow_token_response
+        )
         mock.get("https://api.twitch.tv/helix/users").mock(side_effect=side_effects)
         mock.get("https://api.twitch.tv/helix/videos").mock(return_value=videos_ok)
 
@@ -196,9 +207,7 @@ def test_token_cache_thread_safety():
 
 def test_missing_credentials_log_debug_and_skip(caplog):
     """When client_id OR client_secret is absent, log DEBUG and skip — no raise, no block."""
-    src = TwitchSource(
-        client_id=None, client_secret="y", channel_logins=["anthropic"]
-    )
+    src = TwitchSource(client_id=None, client_secret="y", channel_logins=["anthropic"])
     caplog.set_level(logging.DEBUG, logger="builderpulse.sources.twitch")
 
     # Must not raise
@@ -211,7 +220,9 @@ def test_missing_credentials_log_debug_and_skip(caplog):
     assert any(
         "missing" in r.getMessage().lower() or "credential" in r.getMessage().lower()
         for r in caplog.records
-    ), f"Expected DEBUG log about missing credentials, got: {[r.getMessage() for r in caplog.records]}"
+    ), (
+        f"Expected DEBUG log about missing credentials, got: {[r.getMessage() for r in caplog.records]}"
+    )
 
 
 def test_log_sanitization_for_client_secret(caplog):
@@ -253,7 +264,9 @@ def test_twitchauth_get_token_caches():
 
     def fake_post(*_args, **_kwargs):
         call_count[0] += 1
-        return httpx.Response(200, json={"access_token": "cached_token", "expires_in": 5184000})
+        return httpx.Response(
+            200, json={"access_token": "cached_token", "expires_in": 5184000}
+        )
 
     with respx.mock() as mock:
         mock.post("https://id.twitch.tv/oauth2/token").mock(side_effect=fake_post)
@@ -272,7 +285,9 @@ def test_twitchauth_invalidate_forces_refresh():
 
     def fake_post(*_args, **_kwargs):
         call_count[0] += 1
-        return httpx.Response(200, json={"access_token": f"token_v{call_count[0]}", "expires_in": 5184000})
+        return httpx.Response(
+            200, json={"access_token": f"token_v{call_count[0]}", "expires_in": 5184000}
+        )
 
     with respx.mock() as mock:
         mock.post("https://id.twitch.tv/oauth2/token").mock(side_effect=fake_post)
