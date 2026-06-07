@@ -354,12 +354,132 @@ def config():
 
 @config.command("show")
 def config_show():
-    """Show current configuration."""
+    """Show current configuration + newly available integrations (spec §3.6)."""
     from builderpulse.core.config import Config
+    from builderpulse.plugins.registry import PluginRegistry
     import json
 
     cfg = Config()
     click.echo(json.dumps(cfg.to_dict(mask_secrets=True), indent=2))
+
+    # ── Newly available integrations (spec §3.6 User-facing discoverability) ──
+    # When v2.1.0 ships new entry points (e.g. github_trending, slack), users
+    # should be able to discover them via `bp config show` without reading
+    # release notes. list_all() returns entry-point names even when their
+    # dependencies are missing — surfacing them as "newly available" nudges
+    # users to opt in via `bp config migrate --interactive`.
+    click.echo("")
+    click.echo("# Newly available integrations (v2.1.0, disabled by default):")
+
+    registry = PluginRegistry()
+    all_sources = registry.list_all("sources")
+    all_channels = registry.list_all("channels")
+
+    enabled_sources = cfg.enabled_sources
+    enabled_channels = cfg.enabled_channels
+
+    new_sources = [s for s in all_sources.keys() if s not in enabled_sources]
+    new_channels = [c for c in all_channels.keys() if c not in enabled_channels]
+
+    if new_sources:
+        click.echo(f"  Sources: {', '.join(new_sources)}")
+        click.echo("    Enable: bp config set enabled_sources+=<name>")
+    if new_channels:
+        click.echo(f"  Channels: {', '.join(new_channels)}")
+        click.echo("    Enable: bp config set enabled_channels+=<name>")
+
+    if not new_sources and not new_channels:
+        click.echo("  (none)")
+
+
+@config.command("migrate")
+@click.option(
+    "--interactive",
+    is_flag=True,
+    help="Walk through each newly available integration and prompt to enable.",
+)
+def config_migrate(interactive):
+    """Migrate v2.0.0 config to v2.1.0 (or re-run with --interactive).
+
+    Without --interactive: the file is already migrated on first load
+    (see :meth:`Config.from_file`); this command prints a status line so
+    users can confirm the version.
+
+    With --interactive: walks through each newly available integration
+    and asks the user whether to enable it. Experimental integrations
+    (xiaohongshu, wechat_mp) print a warning about extra config needed.
+    """
+    from builderpulse.core.config import Config, TARGET_CONFIG_VERSION
+    from builderpulse.core.config_manager import ConfigManager
+    from builderpulse.plugins.registry import PluginRegistry
+    from pathlib import Path
+    import json
+
+    cfg_path = Path(ConfigManager.get_config_path())
+
+    if not interactive:
+        # Dry-run: report the on-disk version (Config.from_file migrates
+        # the file on first load; we re-read here to get the persisted value).
+        try:
+            cfg = Config.from_file(cfg_path)
+        except FileNotFoundError:
+            click.echo(f"No config file at {cfg_path}. Run 'bp config init' first.", err=True)
+            sys.exit(1)
+        click.echo(f"Config migrated to v{cfg.version} at {cfg_path}")
+        click.echo(f"  Target: {TARGET_CONFIG_VERSION}")
+        click.echo(f"  Run 'bp config migrate --interactive' to enable new integrations.")
+        return
+
+    # Interactive wizard: load config (auto-migrates if needed), prompt per integration.
+    try:
+        cfg = Config.from_file(cfg_path)
+    except FileNotFoundError:
+        click.echo(f"No config file at {cfg_path}. Run 'bp config init' first.", err=True)
+        sys.exit(1)
+
+    registry = PluginRegistry()
+    all_sources = registry.list_all("sources")
+    all_channels = registry.list_all("channels")
+
+    new_sources = [s for s in all_sources.keys() if s not in cfg.enabled_sources]
+    new_channels = [c for c in all_channels.keys() if c not in cfg.enabled_channels]
+
+    click.echo(f"Found {len(new_sources)} new sources and {len(new_channels)} new channels.")
+    if not new_sources and not new_channels:
+        click.echo("Nothing to migrate — all available integrations are already enabled.")
+        return
+    click.echo("")
+
+    # Track additions so we can persist once at the end (avoid partial writes).
+    added_sources: list[str] = []
+    added_channels: list[str] = []
+
+    for src in new_sources:
+        if click.confirm(f"Enable source '{src}'?", default=False):
+            cfg.enabled_sources.append(src)
+            added_sources.append(src)
+            click.echo(f"  -> Added {src} to enabled_sources.")
+            if src in ("xiaohongshu", "wechat_mp"):
+                click.echo("  WARNING: experimental; needs proxy_url config.")
+
+    for ch in new_channels:
+        if click.confirm(f"Enable channel '{ch}'?", default=False):
+            cfg.enabled_channels.append(ch)
+            added_channels.append(ch)
+            click.echo(f"  -> Added {ch} to enabled_channels.")
+
+    if not added_sources and not added_channels:
+        click.echo("No changes made.")
+        return
+
+    # Persist: write the full config dict back to disk.
+    cfg_dict = cfg.to_dict(mask_secrets=False)
+    cfg_path.write_text(
+        json.dumps(cfg_dict, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    # Invalidate the cached config so the next get() picks up the changes.
+    ConfigManager.set_config_path(cfg_path)
+    click.echo(f"Updated {cfg_path} (+{len(added_sources)} sources, +{len(added_channels)} channels).")
 
 
 @config.command("set")
