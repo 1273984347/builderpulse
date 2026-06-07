@@ -7,6 +7,7 @@ from .blog import BlogSource
 from .github_trending import GitHubTrendingSource
 from .podcast import PodcastSource
 from .twitter import TwitterSource
+from .xiaohongshu import XiaohongshuSource
 from .youtube import YouTubeSource
 from .twitch import TwitchSource
 from .wechat_mp import WeChatMPSource
@@ -17,6 +18,7 @@ __all__ = [
     "GitHubTrendingSource",
     "PodcastSource",
     "TwitterSource",
+    "XiaohongshuSource",
     "YouTubeSource",
     "TwitchSource",
     "WeChatMPSource",
