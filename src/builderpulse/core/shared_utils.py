@@ -146,9 +146,7 @@ def _fetch_wbi_key_from_bilibili(client: httpx.Client) -> str:
     sub_url = wbi_img.get("sub_url", "")
 
     if not img_url or not sub_url:
-        raise RuntimeError(
-            "Bilibili nav response missing wbi_img/img_url/sub_url"
-        )
+        raise RuntimeError("Bilibili nav response missing wbi_img/img_url/sub_url")
 
     img_key = img_url.split("/")[-1].split(".")[0]
     sub_key = sub_url.split("/")[-1].split(".")[0]

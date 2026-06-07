@@ -68,6 +68,7 @@ def test_new_error_codes_exist():
 def test_error_codes_are_json_serializable():
     """New error code values are JSON-serializable (string enum value usable in JSON payloads)."""
     import json
+
     data = {"code": ErrorCode.SOURCE_MISSING_CREDENTIALS.value}
     assert json.dumps(data)  # should not raise
 

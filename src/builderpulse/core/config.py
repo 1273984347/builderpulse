@@ -83,7 +83,9 @@ class Config:
     # form is reserved by Python's name-mangling rules but is the canonical
     # name in the on-disk config file.
     version: str = TARGET_CONFIG_VERSION
-    enabled_sources: list = field(default_factory=lambda: list(_DEFAULT_ENABLED_SOURCES))
+    enabled_sources: list = field(
+        default_factory=lambda: list(_DEFAULT_ENABLED_SOURCES)
+    )
     enabled_channels: list = field(
         default_factory=lambda: list(_DEFAULT_ENABLED_CHANNELS)
     )

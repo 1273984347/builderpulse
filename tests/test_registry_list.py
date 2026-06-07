@@ -116,9 +116,7 @@ def test_list_enabled_only_unsupported_group_returns_all(
     """Groups with no enabled_field mapping return all plugins unchanged."""
     registry.register("downloaders", _FakeDownloader("dl1"))
     # "downloaders" has no enabled_field mapping; should not even call ConfigManager
-    with patch(
-        "builderpulse.core.config_manager.ConfigManager.get"
-    ) as mock_get:
+    with patch("builderpulse.core.config_manager.ConfigManager.get") as mock_get:
         plugins = registry.list("downloaders", enabled_only=True)
     assert "dl1" in plugins
     mock_get.assert_not_called()
@@ -187,9 +185,7 @@ def _fake_entry_points():
 def test_list_all_returns_entry_point_names(registry: PluginRegistry) -> None:
     """list_all(group) returns all entry_point names, including unloadable ones."""
     fake_eps = _fake_entry_points()
-    with patch(
-        "builderpulse.plugins.registry.entry_points", return_value=fake_eps
-    ):
+    with patch("builderpulse.plugins.registry.entry_points", return_value=fake_eps):
         result = registry.list_all("sources")
     # Both names must appear in the result, even if one couldn't be loaded
     assert "loaded_plugin" in result
@@ -199,9 +195,7 @@ def test_list_all_returns_entry_point_names(registry: PluginRegistry) -> None:
 def test_list_all_marks_unloaded_as_none(registry: PluginRegistry) -> None:
     """Unloaded entry points (missing extras, etc.) are surfaced as None."""
     fake_eps = _fake_entry_points()
-    with patch(
-        "builderpulse.plugins.registry.entry_points", return_value=fake_eps
-    ):
+    with patch("builderpulse.plugins.registry.entry_points", return_value=fake_eps):
         result = registry.list_all("sources")
     # 'missing_extra' should be in the dict but its value should be None
     assert "missing_extra" in result

@@ -172,9 +172,7 @@ class BatchManager:
         """
         cfg = ConfigManager.get()
 
-        effective_sources, source_errors = self._resolve_sources(
-            cfg, sources_override
-        )
+        effective_sources, source_errors = self._resolve_sources(cfg, sources_override)
         effective_channels, channel_errors = self._resolve_channels(
             cfg, channels_override
         )
@@ -187,7 +185,8 @@ class BatchManager:
             "sources": effective_sources,
             "channels": effective_channels,
             "skipped": [
-                err.split(" ", 1)[0].rstrip(":") for err in source_errors + channel_errors
+                err.split(" ", 1)[0].rstrip(":")
+                for err in source_errors + channel_errors
             ],
         }
         logger.info(
@@ -273,9 +272,7 @@ class BatchManager:
             ch_cfg = channels_cfg.get(ch, {}) if isinstance(channels_cfg, dict) else {}
             required = _CHANNEL_REQUIRED_FIELDS.get(ch)
             if required and not ch_cfg.get(required):
-                msg = (
-                    f"Channel {ch} requires {required}. Refusing override."
-                )
+                msg = f"Channel {ch} requires {required}. Refusing override."
                 errors.append(msg)
                 continue
             effective.append(ch)

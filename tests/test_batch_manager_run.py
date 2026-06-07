@@ -32,9 +32,7 @@ def _empty_registry() -> dict:
 @pytest.fixture
 def empty_registry():
     """Patch ``PluginRegistry.list`` to return ``{}`` so ``run()`` short-circuits."""
-    with patch(
-        "builderpulse.plugins.registry.PluginRegistry.list", return_value={}
-    ):
+    with patch("builderpulse.plugins.registry.PluginRegistry.list", return_value={}):
         yield
 
 
@@ -65,7 +63,9 @@ class TestRunWithOverrides:
         mgr.shutdown()
         # No ERROR logs expected.
         errors = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [], f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        assert errors == [], (
+            f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        )
 
     def test_run_with_channels_override_accepted_when_credentials_present(
         self, tmp_path, empty_registry
@@ -73,7 +73,9 @@ class TestRunWithOverrides:
         """channels_override is accepted when all required creds are provided."""
         mgr = BatchManager(db_path=tmp_path / "cache.db")
         mock_config = MagicMock()
-        mock_config.channels_config = {"slack": {"webhook_url": "https://hooks.slack.test/x"}}
+        mock_config.channels_config = {
+            "slack": {"webhook_url": "https://hooks.slack.test/x"}
+        }
         mock_config.sources_config = {}
         mock_config.enabled_sources = []
         mock_config.enabled_channels = []
@@ -94,7 +96,9 @@ class TestRunWithOverrides:
 class TestExperimentalOverrideRequiresProxy:
     """xiaohongshu / wechat_mp overrides require proxy_url in config."""
 
-    def test_xiaohongshu_override_without_proxy_logs_error(self, tmp_path, empty_registry, caplog):
+    def test_xiaohongshu_override_without_proxy_logs_error(
+        self, tmp_path, empty_registry, caplog
+    ):
         mgr = BatchManager(db_path=tmp_path / "cache.db")
         mock_config = MagicMock()
         mock_config.sources_config = {"xiaohongshu": {}}  # no proxy_url
@@ -113,13 +117,14 @@ class TestExperimentalOverrideRequiresProxy:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "xiaohongshu" in m.lower() and "proxy" in m.lower()
-            for m in error_messages
+            "xiaohongshu" in m.lower() and "proxy" in m.lower() for m in error_messages
         ), f"Expected xiaohongshu + proxy error, got: {error_messages}"
 
         mgr.shutdown()
 
-    def test_wechat_mp_override_without_proxy_logs_error(self, tmp_path, empty_registry, caplog):
+    def test_wechat_mp_override_without_proxy_logs_error(
+        self, tmp_path, empty_registry, caplog
+    ):
         mgr = BatchManager(db_path=tmp_path / "cache.db")
         mock_config = MagicMock()
         mock_config.sources_config = {"wechat_mp": {}}  # no proxy_url
@@ -138,8 +143,7 @@ class TestExperimentalOverrideRequiresProxy:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "wechat_mp" in m.lower() and "proxy" in m.lower()
-            for m in error_messages
+            "wechat_mp" in m.lower() and "proxy" in m.lower() for m in error_messages
         ), f"Expected wechat_mp + proxy error, got: {error_messages}"
 
         mgr.shutdown()
@@ -165,7 +169,9 @@ class TestExperimentalOverrideRequiresProxy:
                 mgr.run(sources_override=["xiaohongshu"])
 
         errors = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [], f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        assert errors == [], (
+            f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        )
         mgr.shutdown()
 
 
@@ -196,8 +202,7 @@ class TestTwitchOverrideRequiresCredentials:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "twitch" in m.lower() and "client_id" in m.lower()
-            for m in error_messages
+            "twitch" in m.lower() and "client_id" in m.lower() for m in error_messages
         ), f"Expected twitch + client_id error, got: {error_messages}"
 
         mgr.shutdown()
@@ -247,7 +252,9 @@ class TestTwitchOverrideRequiresCredentials:
                 mgr.run(sources_override=["twitch"])
 
         errors = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert errors == [], f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        assert errors == [], (
+            f"Expected no ERROR logs, got: {[r.getMessage() for r in errors]}"
+        )
         mgr.shutdown()
 
 
@@ -278,8 +285,7 @@ class TestChannelsOverrideRequiresCredentials:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "slack" in m.lower() and "webhook_url" in m.lower()
-            for m in error_messages
+            "slack" in m.lower() and "webhook_url" in m.lower() for m in error_messages
         ), f"Expected slack + webhook_url error, got: {error_messages}"
 
         mgr.shutdown()
@@ -305,8 +311,7 @@ class TestChannelsOverrideRequiresCredentials:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "notion" in m.lower() and "token" in m.lower()
-            for m in error_messages
+            "notion" in m.lower() and "token" in m.lower() for m in error_messages
         ), f"Expected notion + token error, got: {error_messages}"
 
         mgr.shutdown()
@@ -332,8 +337,7 @@ class TestChannelsOverrideRequiresCredentials:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "bark" in m.lower() and "device_key" in m.lower()
-            for m in error_messages
+            "bark" in m.lower() and "device_key" in m.lower() for m in error_messages
         ), f"Expected bark + device_key error, got: {error_messages}"
 
         mgr.shutdown()
@@ -359,8 +363,7 @@ class TestChannelsOverrideRequiresCredentials:
             r.getMessage() for r in caplog.records if r.levelname == "ERROR"
         ]
         assert any(
-            "webhook" in m.lower() and "url" in m.lower()
-            for m in error_messages
+            "webhook" in m.lower() and "url" in m.lower() for m in error_messages
         ), f"Expected webhook + url error, got: {error_messages}"
 
         mgr.shutdown()

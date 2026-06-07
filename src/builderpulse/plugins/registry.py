@@ -198,9 +198,7 @@ class PluginRegistry:
         "channels": "enabled_channels",
     }
 
-    def list(
-        self, group: str, enabled_only: bool = False
-    ) -> Dict[str, Any]:
+    def list(self, group: str, enabled_only: bool = False) -> Dict[str, Any]:
         """Return ``{name: instance}`` for all loaded plugins in *group*.
 
         When *enabled_only* is True, the result is filtered by the user's

@@ -423,18 +423,24 @@ def config_migrate(interactive):
         try:
             cfg = Config.from_file(cfg_path)
         except FileNotFoundError:
-            click.echo(f"No config file at {cfg_path}. Run 'bp config init' first.", err=True)
+            click.echo(
+                f"No config file at {cfg_path}. Run 'bp config init' first.", err=True
+            )
             sys.exit(1)
         click.echo(f"Config migrated to v{cfg.version} at {cfg_path}")
         click.echo(f"  Target: {TARGET_CONFIG_VERSION}")
-        click.echo(f"  Run 'bp config migrate --interactive' to enable new integrations.")
+        click.echo(
+            "  Run 'bp config migrate --interactive' to enable new integrations."
+        )
         return
 
     # Interactive wizard: load config (auto-migrates if needed), prompt per integration.
     try:
         cfg = Config.from_file(cfg_path)
     except FileNotFoundError:
-        click.echo(f"No config file at {cfg_path}. Run 'bp config init' first.", err=True)
+        click.echo(
+            f"No config file at {cfg_path}. Run 'bp config init' first.", err=True
+        )
         sys.exit(1)
 
     registry = PluginRegistry()
@@ -444,9 +450,13 @@ def config_migrate(interactive):
     new_sources = [s for s in all_sources.keys() if s not in cfg.enabled_sources]
     new_channels = [c for c in all_channels.keys() if c not in cfg.enabled_channels]
 
-    click.echo(f"Found {len(new_sources)} new sources and {len(new_channels)} new channels.")
+    click.echo(
+        f"Found {len(new_sources)} new sources and {len(new_channels)} new channels."
+    )
     if not new_sources and not new_channels:
-        click.echo("Nothing to migrate — all available integrations are already enabled.")
+        click.echo(
+            "Nothing to migrate — all available integrations are already enabled."
+        )
         return
     click.echo("")
 
@@ -479,7 +489,9 @@ def config_migrate(interactive):
     )
     # Invalidate the cached config so the next get() picks up the changes.
     ConfigManager.set_config_path(cfg_path)
-    click.echo(f"Updated {cfg_path} (+{len(added_sources)} sources, +{len(added_channels)} channels).")
+    click.echo(
+        f"Updated {cfg_path} (+{len(added_sources)} sources, +{len(added_channels)} channels)."
+    )
 
 
 @config.command("set")
