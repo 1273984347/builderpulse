@@ -8,6 +8,7 @@ from .email_sender import EmailChannel
 from .lark import LarkChannel
 from .dingtalk import DingTalkChannel
 from .discord import DiscordChannel
+from .slack import SlackChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
@@ -18,6 +19,7 @@ _CHANNELS = {
     "lark": LarkChannel,
     "dingtalk": DingTalkChannel,
     "discord": DiscordChannel,
+    "slack": SlackChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
     "stderr": StderrChannel,
