@@ -31,6 +31,8 @@ browser = ["playwright>=1.40"]
 sources = ["feedparser>=6.0", "beautifulsoup4>=4.12", "tweepy>=4.14"]
 # GitHub Trending + Releases (HTML scrape needs beautifulsoup4)
 github = ["beautifulsoup4>=4.12"]
+# Twitch VODs (uses httpx, already a core dep — extra exists for discoverability)
+twitch = ["httpx>=0.24"]
 # LLM providers
 llm = ["openai>=1.0", "anthropic>=0.20", "ollama>=0.1"]
 # MCP server
@@ -50,6 +52,8 @@ dev = [
     # Needed by tests that import from sources/* (CI without [sources])
     "feedparser>=6.0",
     "beautifulsoup4>=4.12",  # for github source tests in CI without [github]
+    # httpx is a core dep, but list here too for [twitch] tests in CI
+    "httpx>=0.24",
 ]
 
 [project.scripts]

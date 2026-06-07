@@ -8,6 +8,7 @@ from .github_trending import GitHubTrendingSource
 from .podcast import PodcastSource
 from .twitter import TwitterSource
 from .youtube import YouTubeSource
+from .twitch import TwitchSource
 
 __all__ = [
     "BilibiliSource",
@@ -16,4 +17,5 @@ __all__ = [
     "PodcastSource",
     "TwitterSource",
     "YouTubeSource",
+    "TwitchSource",
 ]
