@@ -8,6 +8,7 @@ Combines three sub-features:
 All items are returned as ``FeedItem`` with ``sub_source`` stored in ``metadata``
 to distinguish the three pipelines (trending | search | releases).
 """
+
 from __future__ import annotations
 
 import logging
@@ -167,7 +168,10 @@ class GitHubTrendingSource:
                     content="",
                     author="",
                     published_at=None,
-                    metadata={"sub_source": SUB_SEARCH, "stars": item.get("stargazers_count", 0)},
+                    metadata={
+                        "sub_source": SUB_SEARCH,
+                        "stars": item.get("stargazers_count", 0),
+                    },
                 )
             )
         return items

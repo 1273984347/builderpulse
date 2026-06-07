@@ -7,6 +7,7 @@ Covers:
 - No Releases API calls when repos=[] (zero-cost when unused)
 - github_token never appears in logs (log sanitization)
 """
+
 from __future__ import annotations
 
 import logging
@@ -47,7 +48,9 @@ def test_fetch_trending_html_parses_articles(github_source):
 
     assert len(items) > 0
     # First set of items should be the trending ones (trending | search)
-    trending_items = [i for i in items if i.metadata.get("sub_source") in ("trending", "search")]
+    trending_items = [
+        i for i in items if i.metadata.get("sub_source") in ("trending", "search")
+    ]
     assert len(trending_items) > 0
     assert all(item.url.startswith("https://github.com/") for item in trending_items)
     assert all(item.metadata.get("sub_source") == "trending" for item in trending_items)
@@ -74,9 +77,9 @@ def test_circuit_breaker_falls_back_to_search_api(github_source):
                 },
             )
         )
-        mock.get("https://api.github.com/repos/anthropics/anthropic-cookbook/releases").mock(
-            return_value=httpx.Response(200, json=[])
-        )
+        mock.get(
+            "https://api.github.com/repos/anthropics/anthropic-cookbook/releases"
+        ).mock(return_value=httpx.Response(200, json=[]))
         items = github_source.fetch()
 
     search_items = [i for i in items if i.metadata.get("sub_source") == "search"]
@@ -89,7 +92,9 @@ def test_releases_subfeature_when_repos_configured(github_source):
     with respx.mock(assert_all_called=False) as mock:
         # Mock trending to be empty (so we focus on releases)
         mock.get("https://github.com/trending/python").mock(
-            return_value=httpx.Response(200, text="<html><body>no articles</body></html>")
+            return_value=httpx.Response(
+                200, text="<html><body>no articles</body></html>"
+            )
         )
         mock.get("https://api.github.com/search/repositories").mock(
             return_value=httpx.Response(200, json={"items": []})
@@ -128,7 +133,9 @@ def test_no_releases_when_repos_empty():
     )
     with respx.mock(assert_all_called=False) as mock:
         mock.get("https://github.com/trending/python").mock(
-            return_value=httpx.Response(200, text="<html><body>no articles</body></html>")
+            return_value=httpx.Response(
+                200, text="<html><body>no articles</body></html>"
+            )
         )
         mock.get("https://api.github.com/search/repositories").mock(
             return_value=httpx.Response(200, json={"items": []})
@@ -150,7 +157,9 @@ def test_log_sanitization_for_github_token(caplog):
     caplog.set_level(logging.DEBUG, logger="builderpulse.sources.github_trending")
     with respx.mock(assert_all_called=False) as mock:
         mock.get("https://github.com/trending/python").mock(
-            return_value=httpx.Response(200, text="<html><body>no articles</body></html>")
+            return_value=httpx.Response(
+                200, text="<html><body>no articles</body></html>"
+            )
         )
         mock.get("https://api.github.com/search/repositories").mock(
             return_value=httpx.Response(200, json={"items": []})

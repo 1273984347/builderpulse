@@ -5,6 +5,7 @@ conformance directly (import + isinstance). The full entry-point round-trip
 (setuptools packaging + PluginRegistry.load) is verified by the registration
 batch in Task 23 — see the v2.1.0 roadmap design doc.
 """
+
 from __future__ import annotations
 
 
