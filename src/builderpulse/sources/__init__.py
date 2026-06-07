@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from .twitter import TwitterSource
-from .podcast import PodcastSource
-from .blog import BlogSource
 from .bilibili import BilibiliSource
+from .blog import BlogSource
+from .github_trending import GitHubTrendingSource
+from .podcast import PodcastSource
+from .twitter import TwitterSource
 from .youtube import YouTubeSource
 
 __all__ = [
-    "TwitterSource",
-    "PodcastSource",
-    "BlogSource",
     "BilibiliSource",
+    "BlogSource",
+    "GitHubTrendingSource",
+    "PodcastSource",
+    "TwitterSource",
     "YouTubeSource",
 ]

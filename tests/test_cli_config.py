@@ -51,9 +51,19 @@ def missing_config_path(tmp_path: Path, monkeypatch) -> Path:
 # ── test_config_show_includes_newly_available_section ───────────────────
 
 
-def test_config_show_includes_newly_available_section(tmp_config_path: Path):
+def test_config_show_includes_newly_available_section(tmp_config_path: Path, monkeypatch):
     """`bp config show` should always emit a 'Newly available' section header,
     even when no new integrations are installed in the current environment."""
+    # Mock the registry to simulate the "no new plugins" state regardless of
+    # what's actually installed in the env (e.g. github_trending in v2.1.0).
+    from builderpulse.plugins import registry as reg_mod
+
+    class _EmptyRegistry:
+        def list_all(self, group):
+            return {}
+
+    monkeypatch.setattr(reg_mod, "PluginRegistry", _EmptyRegistry)
+
     runner = CliRunner()
     result = runner.invoke(cli, ["config", "show"])
     assert result.exit_code == 0, result.output
@@ -101,9 +111,19 @@ def test_config_migrate_missing_file(missing_config_path: Path):
 # ── test_config_migrate_interactive_no_plugins ──────────────────────────
 
 
-def test_config_migrate_interactive_no_plugins(tmp_config_path: Path):
+def test_config_migrate_interactive_no_plugins(tmp_config_path: Path, monkeypatch):
     """When no entry-point plugins are loaded, --interactive should report
     "Nothing to migrate" rather than prompt for non-existent items."""
+    # Mock the registry to simulate the "no new plugins" state regardless of
+    # what's actually installed in the env (e.g. github_trending in v2.1.0).
+    from builderpulse.plugins import registry as reg_mod
+
+    class _EmptyRegistry:
+        def list_all(self, group):
+            return {}
+
+    monkeypatch.setattr(reg_mod, "PluginRegistry", _EmptyRegistry)
+
     runner = CliRunner()
     # No input — the command should print the early-exit message without
     # ever calling click.confirm().
