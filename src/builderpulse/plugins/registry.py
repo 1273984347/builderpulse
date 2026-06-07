@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from importlib.metadata import entry_points
 from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
+
+from builderpulse.core.error_codes import ErrorCode, emit_error
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,128 @@ class ChannelPlugin(Protocol):
     name: str
 
     def deliver(self, content: Any, **kwargs: Any) -> Any: ...
+
+
+# ---------------------------------------------------------------------------
+# Experimental plugin proxy (v2.1.0 — see spec §4.1.1)
+# ---------------------------------------------------------------------------
+
+
+class SourceAutoDisabledError(Exception):
+    """Raised when an experimental source/channel has been auto-disabled.
+
+    An experimental plugin is auto-disabled after 3 consecutive failures
+    within a 1-hour sliding window. Once auto-disabled, every call to
+    ``fetch()`` / ``deliver()`` raises this exception immediately until
+    the registry instance is recreated (process restart or fresh
+    ``PluginRegistry()``).
+    """
+
+    def __init__(self, source_name: str) -> None:
+        super().__init__(f"Experimental plugin {source_name!r} auto-disabled")
+        self.source_name = source_name
+
+
+class ExperimentalPluginProxy:
+    """Wrap an experimental SourcePlugin/ChannelPlugin to track failures.
+
+    Plugins that declare ``__experimental__ = True`` are wrapped at load
+    time. The proxy intercepts ``fetch()`` (sources) and ``deliver()``
+    (channels) so that **3 consecutive failures within a 1-hour window**
+    auto-disable the plugin and emit a structured error event.
+
+    Design notes
+    ------------
+    * Uses ``__getattr__`` delegation **plus** explicit method
+      declarations so that ``isinstance(proxy, SourcePlugin)`` /
+      ``isinstance(proxy, ChannelPlugin)`` returns ``True`` under
+      ``@runtime_checkable`` Protocols.
+    * The success path resets both the failure counter and the
+      window-start timestamp, so a single successful call clears the
+      "streak".
+    * Once auto-disabled, the proxy never recovers within the same
+      registry instance — by design, this prevents a flapping source
+      from re-entering the rotation without operator attention.
+    """
+
+    def __init__(self, wrapped: Any) -> None:
+        self._wrapped = wrapped
+        self._failures: int = 0
+        self._first_failure_window_start: Optional[float] = None
+        self._auto_disabled: bool = False
+
+    # -- delegation: makes all unknown attributes pass through -----------
+
+    def __getattr__(self, name: str) -> Any:
+        # __getattr__ is only called when normal lookup fails, so the
+        # attributes we set in __init__ (above) are returned normally.
+        return getattr(self._wrapped, name)
+
+    # -- explicit attributes & methods (for @runtime_checkable) ---------
+
+    @property
+    def name(self) -> str:
+        return self._wrapped.name
+
+    def fetch(self, **kwargs: Any) -> Any:
+        """Intercept fetch to track failures for experimental sources."""
+        if self._auto_disabled:
+            raise SourceAutoDisabledError(self.name)
+        try:
+            result = self._wrapped.fetch(**kwargs)
+        except Exception as exc:
+            self._record_failure()
+            if self._should_auto_disable():
+                self._trigger_auto_disable()
+                raise SourceAutoDisabledError(self.name) from exc
+            raise
+        self._record_success()
+        return result
+
+    def deliver(self, content: Any, **kwargs: Any) -> Any:
+        """Intercept deliver to track failures for experimental channels."""
+        if self._auto_disabled:
+            raise SourceAutoDisabledError(self.name)
+        try:
+            result = self._wrapped.deliver(content, **kwargs)
+        except Exception as exc:
+            self._record_failure()
+            if self._should_auto_disable():
+                self._trigger_auto_disable()
+                raise SourceAutoDisabledError(self.name) from exc
+            raise
+        self._record_success()
+        return result
+
+    def health_check(self) -> bool:
+        return self._wrapped.health_check()
+
+    # -- internal failure-tracking helpers -------------------------------
+
+    def _record_failure(self) -> None:
+        now = time.time()
+        if self._first_failure_window_start is None:
+            self._first_failure_window_start = now
+        self._failures += 1
+
+    def _record_success(self) -> None:
+        # Any success resets the streak so a single bad run does not
+        # bleed into the next batch.
+        self._failures = 0
+        self._first_failure_window_start = None
+
+    def _should_auto_disable(self) -> bool:
+        if self._failures < 3 or self._first_failure_window_start is None:
+            return False
+        return (time.time() - self._first_failure_window_start) <= 3600
+
+    def _trigger_auto_disable(self) -> None:
+        self._auto_disabled = True
+        logger.warning(
+            "Experimental plugin %s auto-disabled after 3 failures in 1h",
+            self.name,
+        )
+        emit_error(ErrorCode.SOURCE_AUTO_DISABLED, source=self.name)
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +263,11 @@ class PluginRegistry:
                     instance = (
                         obj() if callable(obj) and not isinstance(obj, type) else obj
                     )
+                    # Wrap experimental plugins (v2.1.0 spec §4.1.1) so
+                    # that 3 consecutive failures within 1h auto-disable
+                    # the source/channel and emit a structured error.
+                    if getattr(instance, "__experimental__", False):
+                        instance = ExperimentalPluginProxy(instance)
                     if self._validate_plugin(group, instance):
                         name = getattr(instance, "name", ep.name)
                         self._plugins[group][name] = instance
