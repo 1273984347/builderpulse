@@ -422,3 +422,36 @@ def get_plugin(group: str, name: str) -> Optional[Any]:
 def list_plugins(group: str) -> Dict[str, Any]:
     """Convenience: list plugins on the global registry."""
     return _registry.list_plugins(group)
+
+
+# ---------------------------------------------------------------------------
+# Protocol compatibility helpers (for entry_point introspection)
+# ---------------------------------------------------------------------------
+
+
+def is_source_plugin_compatible(cls: type) -> bool:
+    """Check if *cls* satisfies the SourcePlugin Protocol.
+
+    Returns True iff the class exposes a string ``name`` class attribute
+    and a callable ``fetch`` method. Mirrors the runtime-checkable
+    ``SourcePlugin`` Protocol (which only requires ``name`` + ``fetch``).
+    ``health_check`` is **not** required for backwards compatibility with
+    v2.0.0 sources that pre-date the health-check convention.
+    """
+    return isinstance(getattr(cls, "name", None), str) and callable(
+        getattr(cls, "fetch", None)
+    )
+
+
+def is_channel_plugin_compatible(cls: type) -> bool:
+    """Check if *cls* satisfies the ChannelPlugin Protocol.
+
+    Returns True iff the class exposes a string ``name`` class attribute
+    and a callable ``deliver`` method. Mirrors the runtime-checkable
+    ``ChannelPlugin`` Protocol (which only requires ``name`` + ``deliver``).
+    ``health_check`` is **not** required for backwards compatibility with
+    v2.0.0 channels that pre-date the health-check convention.
+    """
+    return isinstance(getattr(cls, "name", None), str) and callable(
+        getattr(cls, "deliver", None)
+    )

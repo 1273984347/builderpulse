@@ -6,12 +6,11 @@ from .base import DeliveryChannel
 
 
 class WeComChannel(DeliveryChannel):
+    # Plugin Protocol: required class attribute (Task 23).
+    name = "wecom"
+
     def __init__(self, webhook_url: str = "", **kwargs):
         self.webhook_url = webhook_url
-
-    @property
-    def name(self) -> str:
-        return "wecom"
 
     def send(self, content: str, title: str = "", content_type: str = "text") -> bool:
         import httpx

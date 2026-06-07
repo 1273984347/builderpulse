@@ -6,12 +6,11 @@ from .base import DeliveryChannel
 
 
 class DiscordChannel(DeliveryChannel):
+    # Plugin Protocol: required class attribute (Task 23).
+    name = "discord"
+
     def __init__(self, webhook_url: str = "", **kwargs):
         self.webhook_url = webhook_url
-
-    @property
-    def name(self) -> str:
-        return "discord"
 
     @property
     def max_length(self) -> int:

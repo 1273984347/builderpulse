@@ -18,7 +18,29 @@ dependencies = [
 ]
 
 [project.entry-points."builderpulse.sources"]
+bilibili = "builderpulse.sources.bilibili:BilibiliSource"
+blog = "builderpulse.sources.blog:BlogSource"
 github_trending = "builderpulse.sources.github_trending:GitHubTrendingSource"
+podcast = "builderpulse.sources.podcast:PodcastSource"
+twitch = "builderpulse.sources.twitch:TwitchSource"
+twitter = "builderpulse.sources.twitter:TwitterSource"
+wechat_mp = "builderpulse.sources.wechat_mp:WeChatMPSource"
+xiaohongshu = "builderpulse.sources.xiaohongshu:XiaohongshuSource"
+youtube = "builderpulse.sources.youtube:YouTubeSource"
+
+[project.entry-points."builderpulse.channels"]
+bark = "builderpulse.deliver.bark:BarkChannel"
+dingtalk = "builderpulse.deliver.dingtalk:DingTalkChannel"
+discord = "builderpulse.deliver.discord:DiscordChannel"
+email = "builderpulse.deliver.email_sender:EmailChannel"
+lark = "builderpulse.deliver.lark:LarkChannel"
+notion = "builderpulse.deliver.notion:NotionChannel"
+slack = "builderpulse.deliver.slack:SlackChannel"
+stderr = "builderpulse.deliver.stderr_fallback:StderrChannel"
+telegram = "builderpulse.deliver.telegram:TelegramChannel"
+webhook = "builderpulse.deliver.webhook:WebhookChannel"
+wechat = "builderpulse.deliver.wechat:WeChatChannel"
+wecom = "builderpulse.deliver.wecom:WeComChannel"
 
 [project.optional-dependencies]
 # Transcription engines (pick ONE — they conflict)

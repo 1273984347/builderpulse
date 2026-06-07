@@ -14,6 +14,8 @@ logger = logging.getLogger("builderpulse.sources.youtube")
 class YouTubeSource:
     """Fetch videos from YouTube channels via RSS."""
 
+    name = "youtube"
+
     def __init__(self, channels: list[dict] | None = None):
         self.channels = channels or []  # [{"id": "UCxxx", "name": "Channel"}]
         self._client = httpx.Client(timeout=30, follow_redirects=True)

@@ -38,6 +38,8 @@ def _parse_date_utc(date_str: str) -> Optional[datetime]:
 class BlogSource:
     """Scrape blog posts from configured URLs."""
 
+    name = "blog"
+
     def __init__(self, urls: list[str] | None = None, strict_date: bool = False):
         self.urls = urls or []
         self.strict_date = strict_date
