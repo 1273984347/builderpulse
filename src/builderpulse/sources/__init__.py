@@ -7,6 +7,7 @@ from .podcast import PodcastSource
 from .blog import BlogSource
 from .bilibili import BilibiliSource
 from .youtube import YouTubeSource
+from .wechat_mp import WeChatMPSource
 
 __all__ = [
     "TwitterSource",
@@ -14,4 +15,5 @@ __all__ = [
     "BlogSource",
     "BilibiliSource",
     "YouTubeSource",
+    "WeChatMPSource",
 ]
