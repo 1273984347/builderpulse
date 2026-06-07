@@ -10,6 +10,7 @@ from .lark import LarkChannel
 from .dingtalk import DingTalkChannel
 from .discord import DiscordChannel
 from .notion import NotionChannel
+from .slack import SlackChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
@@ -22,6 +23,7 @@ _CHANNELS = {
     "dingtalk": DingTalkChannel,
     "discord": DiscordChannel,
     "notion": NotionChannel,
+    "slack": SlackChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
     "stderr": StderrChannel,
