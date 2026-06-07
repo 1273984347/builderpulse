@@ -9,6 +9,7 @@ from .email_sender import EmailChannel
 from .lark import LarkChannel
 from .dingtalk import DingTalkChannel
 from .discord import DiscordChannel
+from .notion import NotionChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
@@ -20,6 +21,7 @@ _CHANNELS = {
     "lark": LarkChannel,
     "dingtalk": DingTalkChannel,
     "discord": DiscordChannel,
+    "notion": NotionChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
     "stderr": StderrChannel,
