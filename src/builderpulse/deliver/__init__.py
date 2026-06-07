@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .base import DeliveryChannel
+from .bark import BarkChannel
 from .telegram import TelegramChannel
 from .email_sender import EmailChannel
 from .lark import LarkChannel
@@ -13,6 +14,7 @@ from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
 
 _CHANNELS = {
+    "bark": BarkChannel,
     "telegram": TelegramChannel,
     "email": EmailChannel,
     "lark": LarkChannel,
