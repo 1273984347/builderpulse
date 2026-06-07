@@ -11,6 +11,7 @@ from .discord import DiscordChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
+from .webhook import WebhookChannel
 
 _CHANNELS = {
     "telegram": TelegramChannel,
@@ -20,6 +21,7 @@ _CHANNELS = {
     "discord": DiscordChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
+    "webhook": WebhookChannel,
     "stderr": StderrChannel,
 }
 
