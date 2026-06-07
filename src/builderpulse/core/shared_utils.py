@@ -7,13 +7,30 @@ to eliminate code duplication.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
+import threading
 import time
 import urllib.parse
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import httpx
+
+logger = logging.getLogger(__name__)
+
+# WBI key cache: 30 min TTL (per v2.0.1 design spec).
+# The mixin key is derived from Bilibili's nav response and rotates server-side
+# every few months; 30 min is far shorter than the rotation interval, so cache
+# hit rate is high in steady state and stale-key risk is bounded.
+WBI_CACHE_TTL_SECONDS: int = 30 * 60
+
+# Module-level cache state. Dict (not a custom class) keeps the public surface
+# minimal and makes the cache trivially inspectable from tests.
+_wbi_cache: dict = {"key": None, "fetched_at": 0.0}
+_wbi_cache_lock = threading.Lock()
+
+_NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 
 # WBI mixin key encoding table (from Bilibili web frontend)
 MIXIN_KEY_ENC_TAB: list[int] = [
@@ -98,22 +115,21 @@ def get_mixin_key(raw: str) -> str:
     return "".join(raw[i] for i in MIXIN_KEY_ENC_TAB)[:32]
 
 
-def wbi_sign(params: dict, client: httpx.Client) -> dict:
-    """Sign parameters using Bilibili WBI algorithm.
+def _fetch_wbi_key_from_bilibili(client: httpx.Client) -> str:
+    """Fetch a fresh WBI mixin key from the Bilibili nav API.
 
-    Fetches the current WBI keys from the nav API, computes the mixin key,
-    and signs the given parameters. Returns a new dict with ``wts`` and
-    ``w_rid`` added.
+    Returns the 32-character mixin key derived from the nav response's
+    img_url + sub_url. Used by :func:`get_wbi_key` on cache miss.
 
     Args:
-        params: Request parameters to sign.
-        client: An httpx.Client instance used to call the Bilibili nav API.
+        client: httpx.Client used to call the Bilibili nav endpoint.
 
     Returns:
-        A copy of *params* with ``wts`` (timestamp) and ``w_rid`` (signature)
-        added.
+        The 32-char mixin key, or the result of ``get_mixin_key("")`` if the
+        nav response is missing ``wbi_img`` (the caller treats this as a
+        transient error and the next refresh will retry).
     """
-    nav = client.get("https://api.bilibili.com/x/web-interface/nav").json()
+    nav = client.get(_NAV_URL).json()
     wbi_img = nav.get("data", {}).get("wbi_img", {})
     img_url = wbi_img.get("img_url", "")
     sub_url = wbi_img.get("sub_url", "")
@@ -121,7 +137,66 @@ def wbi_sign(params: dict, client: httpx.Client) -> dict:
     img_key = img_url.split("/")[-1].split(".")[0] if img_url else ""
     sub_key = sub_url.split("/")[-1].split(".")[0] if sub_url else ""
 
-    mixin_key = get_mixin_key(img_key + sub_key)
+    return get_mixin_key(img_key + sub_key)
+
+
+def get_wbi_key(client: httpx.Client) -> str:
+    """Return the cached WBI mixin key, refreshing on miss or TTL expiry.
+
+    Thread-safe: the lock is held across the freshness check and the fetch,
+    so concurrent callers serialize on a single in-flight fetch instead of
+    stampeding the Bilibili nav API.
+
+    The cached value is never logged in full — log lines reference the cache
+    state (hit/miss/invalidated) but not the key bytes themselves.
+
+    Args:
+        client: httpx.Client passed through to the fetcher on cache miss.
+
+    Returns:
+        The 32-character WBI mixin key.
+    """
+    with _wbi_cache_lock:
+        now = time.time()
+        if (
+            _wbi_cache["key"] is not None
+            and (now - _wbi_cache["fetched_at"]) < WBI_CACHE_TTL_SECONDS
+        ):
+            return _wbi_cache["key"]
+        key = _fetch_wbi_key_from_bilibili(client)
+        _wbi_cache["key"] = key
+        _wbi_cache["fetched_at"] = now
+        return key
+
+
+def invalidate_wbi_cache() -> None:
+    """Clear the WBI cache (e.g., after a -6 signature error from Bilibili).
+
+    The next call to :func:`get_wbi_key` will re-fetch from the nav API.
+    Safe to call from any thread.
+    """
+    with _wbi_cache_lock:
+        _wbi_cache["key"] = None
+        _wbi_cache["fetched_at"] = 0.0
+    logger.debug("WBI cache invalidated")
+
+
+def wbi_sign(params: dict, client: httpx.Client) -> dict:
+    """Sign parameters using Bilibili WBI algorithm.
+
+    Fetches (or reuses) the cached WBI mixin key, then signs the given
+    parameters. Returns a new dict with ``wts`` and ``w_rid`` added.
+
+    Args:
+        params: Request parameters to sign.
+        client: An httpx.Client instance used to call the Bilibili nav API
+            when the cache is cold.
+
+    Returns:
+        A copy of *params* with ``wts`` (timestamp) and ``w_rid`` (signature)
+        added.
+    """
+    mixin_key = get_wbi_key(client)
 
     signed = dict(params)
     signed["wts"] = int(time.time())
