@@ -6,6 +6,7 @@ from .twitter import TwitterSource
 from .podcast import PodcastSource
 from .blog import BlogSource
 from .bilibili import BilibiliSource
+from .xiaohongshu import XiaohongshuSource
 from .youtube import YouTubeSource
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "PodcastSource",
     "BlogSource",
     "BilibiliSource",
+    "XiaohongshuSource",
     "YouTubeSource",
 ]
