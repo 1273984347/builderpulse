@@ -383,3 +383,48 @@ class TestCleanup:
         count = tmp_state.cleanup(max_age_days=14)
         assert count == 0
         assert tmp_state.is_processed("k:v")
+
+
+# ── Cursor boundary tests (v2.0.1) ──────────────────────────────────
+# Cursor is an opaque string — no validation should reject any value.
+# Some platforms use UUIDs, base64 tokens, emoji, CJK chars, etc.
+
+
+class TestCursorBoundary:
+    """Guard against future validation that would break legitimate cursors."""
+
+    def test_cursor_non_numeric_string_accepted(self, tmp_state):
+        """Non-numeric cursors (RSS GUIDs, BV numbers, opaque tokens) are stored as-is."""
+        tmp_state.update_cursor("podcast", "feed1", "not-a-number-12345")
+        cursor = tmp_state.get_cursor("podcast", "feed1")
+        assert cursor is not None
+        assert cursor.last_seen_id == "not-a-number-12345"
+
+    def test_cursor_empty_string_accepted(self, tmp_state):
+        """Empty string is a valid cursor (semantically 'start from beginning')."""
+        tmp_state.update_cursor("rss", "empty-feed", "")
+        cursor = tmp_state.get_cursor("rss", "empty-feed")
+        assert cursor is not None
+        assert cursor.last_seen_id == ""
+
+    def test_cursor_unicode_accepted(self, tmp_state):
+        """Unicode cursors (emoji, CJK, accented chars) are stored without corruption."""
+        opaque = "🚀-cursor-中文-naïve-Ω"
+        tmp_state.update_cursor("wechat", "acc", opaque)
+        cursor = tmp_state.get_cursor("wechat", "acc")
+        assert cursor is not None
+        assert cursor.last_seen_id == opaque
+
+    def test_cursor_very_long_string_accepted(self, tmp_state):
+        """Long cursors (UUIDs, base64 tokens, signed pagination cursors) round-trip intact."""
+        long_cursor = "x" * 10000
+        tmp_state.update_cursor("api", "paged", long_cursor)
+        cursor = tmp_state.get_cursor("api", "paged")
+        assert cursor is not None
+        assert cursor.last_seen_id == long_cursor
+        assert len(cursor.last_seen_id) == 10000
+
+    def test_cursor_none_still_works(self, tmp_state):
+        """No cursor written for a (source, account) → get_cursor returns None (no pagination)."""
+        cursor = tmp_state.get_cursor("never", "set")
+        assert cursor is None

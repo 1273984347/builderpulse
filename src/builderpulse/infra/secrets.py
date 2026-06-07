@@ -75,15 +75,11 @@ def set_secret(key: str, value: str) -> None:
     # P2 fix: atomic write
     tmp_path = SECRETS_FILE.with_suffix(".tmp")
     tmp_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    import os
-
     os.replace(str(tmp_path), str(SECRETS_FILE))
 
     # Set permissions (Unix only)
     if sys.platform != "win32":
-        import os as _os
-
-        _os.chmod(SECRETS_FILE, 0o600)
+        os.chmod(SECRETS_FILE, 0o600)
     else:
         # P2 fix: Windows ACL — inherit default DACL is too permissive
         # (Users group typically has Read). Attempt icacls to restrict to
