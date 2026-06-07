@@ -46,6 +46,13 @@ class ErrorCode(str, Enum):
     CONFIG_NOT_FOUND = "CONFIG_NOT_FOUND"
     CONFIG_INVALID = "CONFIG_INVALID"
 
+    # v2.1.0 — dynamic PluginRegistry behavior
+    # (member name: SCREAMING_SNAKE_CASE; value: lowercase dotted form for
+    # downstream MCP/agent consumption; emitted by source/channel lifecycle.)
+    SOURCE_MISSING_CREDENTIALS = "source.missing_credentials"
+    SOURCE_AUTO_DISABLED = "source.auto_disabled"
+    CHANNEL_DISABLED = "channel.disabled"
+
 
 # ── Plugin code registry ────────────────────────────────────────────────
 

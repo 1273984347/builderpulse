@@ -53,3 +53,28 @@ def test_get_error_info_unknown():
     """get_error_info handles unknown codes gracefully."""
     info = get_error_info("UNKNOWN_CODE")
     assert info["type"] == "unknown"
+
+
+# ── v2.1.0 additions: SOURCE_MISSING_CREDENTIALS, SOURCE_AUTO_DISABLED, CHANNEL_DISABLED ──
+
+
+def test_new_error_codes_exist():
+    """v2.1.0 error codes exist with dotted lowercase values per spec §3.4."""
+    assert ErrorCode.SOURCE_MISSING_CREDENTIALS.value == "source.missing_credentials"
+    assert ErrorCode.SOURCE_AUTO_DISABLED.value == "source.auto_disabled"
+    assert ErrorCode.CHANNEL_DISABLED.value == "channel.disabled"
+
+
+def test_error_codes_are_json_serializable():
+    """New error code values are JSON-serializable (string enum value usable in JSON payloads)."""
+    import json
+    data = {"code": ErrorCode.SOURCE_MISSING_CREDENTIALS.value}
+    assert json.dumps(data)  # should not raise
+
+
+def test_error_codes_iterate_includes_new():
+    """ErrorCode iteration includes the new v2.1.0 codes."""
+    all_codes = [c.value for c in ErrorCode]
+    assert "source.missing_credentials" in all_codes
+    assert "source.auto_disabled" in all_codes
+    assert "channel.disabled" in all_codes
