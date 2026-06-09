@@ -7,8 +7,11 @@ Core codes are defined as an enum; plugin codes are registered at runtime.
 
 from __future__ import annotations
 
+import logging
 from enum import Enum
-from typing import Dict
+from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 
 # ── Core error codes ────────────────────────────────────────────────────
@@ -93,3 +96,25 @@ def get_error_info(code: str) -> dict:
         pass
 
     return {"type": "unknown", "code": code}
+
+
+# ── Structured error event emission ──────────────────────────────────────
+
+
+def emit_error(code: "ErrorCode", **details: Any) -> None:
+    """Emit a structured error event for observability.
+
+    Currently logs at WARNING level with the error code and any keyword
+    details. This is the single hook plugins and core code should use to
+    surface error events; future versions may forward these to
+    OpenTelemetry or other observability backends without API changes.
+
+    Parameters
+    ----------
+    code : ErrorCode
+        The error code being emitted (one of the enum members above).
+    **details : Any
+        Free-form context (e.g. ``source="xiaohongshu"``,
+        ``url="https://..."``). Values must be JSON-serializable.
+    """
+    logger.warning("error_code=%s details=%s", code.value, details)

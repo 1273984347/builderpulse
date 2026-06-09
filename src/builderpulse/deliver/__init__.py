@@ -3,23 +3,31 @@
 from __future__ import annotations
 
 from .base import DeliveryChannel
+from .bark import BarkChannel
 from .telegram import TelegramChannel
 from .email_sender import EmailChannel
 from .lark import LarkChannel
 from .dingtalk import DingTalkChannel
 from .discord import DiscordChannel
+from .notion import NotionChannel
+from .slack import SlackChannel
 from .wecom import WeComChannel
 from .wechat import WeChatChannel
 from .stderr_fallback import StderrChannel
+from .webhook import WebhookChannel
 
 _CHANNELS = {
+    "bark": BarkChannel,
     "telegram": TelegramChannel,
     "email": EmailChannel,
     "lark": LarkChannel,
     "dingtalk": DingTalkChannel,
     "discord": DiscordChannel,
+    "notion": NotionChannel,
+    "slack": SlackChannel,
     "wecom": WeComChannel,
     "wechat": WeChatChannel,
+    "webhook": WebhookChannel,
     "stderr": StderrChannel,
 }
 

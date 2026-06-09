@@ -15,6 +15,8 @@ logger = logging.getLogger("builderpulse.sources.podcast")
 class PodcastSource:
     """Fetch podcast episodes from RSS feeds."""
 
+    name = "podcast"
+
     def __init__(self, feeds: list[str] | None = None):
         self.feeds = feeds or []
         self._client = httpx.Client(timeout=30, follow_redirects=True)

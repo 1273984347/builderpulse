@@ -6,13 +6,12 @@ from .base import DeliveryChannel
 
 
 class TelegramChannel(DeliveryChannel):
+    # Plugin Protocol: required class attribute (Task 23).
+    name = "telegram"
+
     def __init__(self, bot_token: str = "", chat_id: str = "", **kwargs):
         self.bot_token = bot_token
         self.chat_id = chat_id
-
-    @property
-    def name(self) -> str:
-        return "telegram"
 
     def send(self, content: str, title: str = "", content_type: str = "text") -> bool:
         import httpx

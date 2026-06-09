@@ -17,6 +17,31 @@ dependencies = [
     "python-dateutil>=2.8",
 ]
 
+[project.entry-points."builderpulse.sources"]
+bilibili = "builderpulse.sources.bilibili:BilibiliSource"
+blog = "builderpulse.sources.blog:BlogSource"
+github_trending = "builderpulse.sources.github_trending:GitHubTrendingSource"
+podcast = "builderpulse.sources.podcast:PodcastSource"
+twitch = "builderpulse.sources.twitch:TwitchSource"
+twitter = "builderpulse.sources.twitter:TwitterSource"
+wechat_mp = "builderpulse.sources.wechat_mp:WeChatMPSource"
+xiaohongshu = "builderpulse.sources.xiaohongshu:XiaohongshuSource"
+youtube = "builderpulse.sources.youtube:YouTubeSource"
+
+[project.entry-points."builderpulse.channels"]
+bark = "builderpulse.deliver.bark:BarkChannel"
+dingtalk = "builderpulse.deliver.dingtalk:DingTalkChannel"
+discord = "builderpulse.deliver.discord:DiscordChannel"
+email = "builderpulse.deliver.email_sender:EmailChannel"
+lark = "builderpulse.deliver.lark:LarkChannel"
+notion = "builderpulse.deliver.notion:NotionChannel"
+slack = "builderpulse.deliver.slack:SlackChannel"
+stderr = "builderpulse.deliver.stderr_fallback:StderrChannel"
+telegram = "builderpulse.deliver.telegram:TelegramChannel"
+webhook = "builderpulse.deliver.webhook:WebhookChannel"
+wechat = "builderpulse.deliver.wechat:WeChatChannel"
+wecom = "builderpulse.deliver.wecom:WeComChannel"
+
 [project.optional-dependencies]
 # Transcription engines (pick ONE — they conflict)
 whisper = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
@@ -26,6 +51,10 @@ faster-whisper = ["faster-whisper>=0.10", "numpy<2"]
 browser = ["playwright>=1.40"]
 # Content sources
 sources = ["feedparser>=6.0", "beautifulsoup4>=4.12", "tweepy>=4.14"]
+# GitHub Trending + Releases (HTML scrape needs beautifulsoup4)
+github = ["beautifulsoup4>=4.12"]
+# Twitch VODs (uses httpx, already a core dep — extra exists for discoverability)
+twitch = ["httpx>=0.24"]
 # LLM providers
 llm = ["openai>=1.0", "anthropic>=0.20", "ollama>=0.1"]
 # MCP server
@@ -44,7 +73,9 @@ dev = [
     "tomli>=2.0",  # for scripts/check_entry_points_sorted.py on 3.9/3.10
     # Needed by tests that import from sources/* (CI without [sources])
     "feedparser>=6.0",
-    "beautifulsoup4>=4.12",
+    "beautifulsoup4>=4.12",  # for github source tests in CI without [github]
+    # httpx is a core dep, but list here too for [twitch] tests in CI
+    "httpx>=0.24",
 ]
 
 [project.scripts]

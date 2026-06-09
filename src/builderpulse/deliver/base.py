@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import time
 import logging
+from typing import Any
 
 logger = logging.getLogger("builderpulse.deliver")
 
@@ -22,6 +23,18 @@ class DeliveryChannel(ABC):
     @property
     def max_length(self) -> int:
         return 4096
+
+    def deliver(self, content: str, title: str = "", **kwargs: Any) -> bool:
+        """Plugin Protocol adapter: ``deliver()`` -> ``send()`` (Task 23).
+
+        The v2.0.0 channel API uses ``send()``. The v2.1.0 ``ChannelPlugin``
+        Protocol requires ``deliver()``. This adapter makes legacy channels
+        satisfy the new Protocol without breaking their existing callers.
+
+        Forward extra kwargs to subclasses that accept them (e.g. some
+        channels take ``content_type``).
+        """
+        return self.send(content, title)
 
     def send_with_retry(self, content: str, title: str = "", retries: int = 3) -> bool:
         for attempt in range(retries):

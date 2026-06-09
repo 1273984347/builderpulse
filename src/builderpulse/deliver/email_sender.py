@@ -6,6 +6,9 @@ from .base import DeliveryChannel
 
 
 class EmailChannel(DeliveryChannel):
+    # Plugin Protocol: required class attribute (Task 23).
+    name = "email"
+
     def __init__(
         self,
         provider: str = "smtp",
@@ -22,10 +25,6 @@ class EmailChannel(DeliveryChannel):
         self.smtp_user = smtp_user
         self.smtp_pass = smtp_pass
         self.to = to
-
-    @property
-    def name(self) -> str:
-        return "email"
 
     def send(self, content: str, title: str = "", content_type: str = "text") -> bool:
         if self.provider == "smtp":

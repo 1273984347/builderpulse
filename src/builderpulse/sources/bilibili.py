@@ -15,6 +15,8 @@ logger = logging.getLogger("builderpulse.sources.bilibili")
 class BilibiliSource:
     """Fetch videos from Bilibili users."""
 
+    name = "bilibili"
+
     def __init__(self, users: list[dict] | None = None, sessdata: str | None = None):
         self.users = users or []  # [{"mid": 123, "name": "UP主"}]
         self.sessdata = sessdata

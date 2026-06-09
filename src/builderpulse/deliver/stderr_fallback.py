@@ -8,9 +8,8 @@ from .base import DeliveryChannel
 
 
 class StderrChannel(DeliveryChannel):
-    @property
-    def name(self) -> str:
-        return "stderr"
+    # Plugin Protocol: required class attribute (Task 23).
+    name = "stderr"
 
     def send(self, content: str, title: str = "", content_type: str = "text") -> bool:
         if title:

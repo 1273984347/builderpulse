@@ -21,6 +21,8 @@ NITTER_INSTANCES = [
 class TwitterSource:
     """Fetch tweets via X API or Nitter RSS fallback."""
 
+    name = "twitter"
+
     def __init__(
         self,
         bearer_token: str | None = None,
