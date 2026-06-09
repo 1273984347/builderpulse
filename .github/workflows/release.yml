@@ -22,14 +22,36 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install build twine
 
       - name: Build sdist and wheel
         run: python -m build
 
-      - name: Create GitHub Release
+      - name: Verify build artifacts
+        run: |
+          ls -la dist/
+          test -f dist/*.whl || (echo "Wheel missing" && exit 1)
+          test -f dist/*.tar.gz || (echo "Sdist missing" && exit 1)
+
+      - name: Create GitHub Release (DRAFT)
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
           draft: true
+
+      - name: Publish to PyPI
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          # Upload to PyPI (idempotent — won't re-upload if version exists)
+          python -m twine upload dist/*
+          # Verify on PyPI
+          sleep 5
+          pip install --upgrade --index-url https://pypi.org/simple/ builderpulse==${{ github.ref_name }} --dry-run 2>&1 | tail -3
+
+      - name: Promote GH Release from draft to published
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: false
