@@ -118,3 +118,81 @@ class TestBatchCacheThreadLocal:
 
         assert len(results) == 3
         assert all(r is not None for r in results)
+
+
+class TestBatchCacheConcurrency:
+    """High-contention multi-thread writes must not raise database is locked.
+
+    Regression for the 2026-06-09 CI flake on test_thread_local_connections
+    (Python 3.10 ubuntu: 1/9 runs fail with OperationalError: database is locked).
+
+    Root cause: SQLite's default busy_timeout=0 means a writer that finds the
+    WAL file locked raises immediately. Under high contention (3+ writers),
+    exactly one thread will lose the race every time. Fix: PRAGMA busy_timeout
+    in _get_conn() makes SQLite wait up to N ms for the lock instead of failing.
+
+    This test stresses 20 threads x 50 writes = 1000 total writes on a single
+    shared SQLite file. Without busy_timeout, this fails ~85% of runs even on
+    Windows. With busy_timeout=5000, it must complete in ~1s with 0 errors.
+    """
+
+    def test_high_contention_writes_succeed(self, tmp_path: Path) -> None:
+        db = tmp_path / "cache.db"
+        errors: list[str] = []
+        error_lock = threading.Lock()
+        N_THREADS = 20
+        N_WRITES = 50
+
+        def worker(tid: int) -> None:
+            try:
+                with BatchCache(db) as cache:
+                    for i in range(N_WRITES):
+                        cache.set(
+                            f"https://t{tid}.com/{i}",
+                            "done",
+                            result={"tid": tid, "i": i},
+                        )
+            except Exception as e:
+                with error_lock:
+                    errors.append(f"t{tid}: {type(e).__name__}: {e}")
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(N_THREADS)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"{len(errors)}/{N_THREADS} threads failed:\n" + "\n".join(
+            errors[:5]
+        )
+
+        # Sanity: all 1000 rows landed
+        with BatchCache(db) as cache:
+            for tid in range(N_THREADS):
+                for i in range(N_WRITES):
+                    assert cache.get(f"https://t{tid}.com/{i}") is not None
+
+    def test_busy_timeout_is_set_on_connections(self, tmp_path: Path) -> None:
+        """Defends against future code changes that might drop the PRAGMA.
+
+        Each new BatchCache connection must have busy_timeout > 0, otherwise
+        the high-contention test above will fail. If you change _get_conn(),
+        do not remove this PRAGMA without re-running the stress test on Linux.
+        """
+        db = tmp_path / "cache.db"
+        with BatchCache(db):
+            seen: list[int] = []
+            seen_lock = threading.Lock()
+
+            def probe() -> None:
+                with BatchCache(db) as c2:
+                    val = c2._get_conn().execute("PRAGMA busy_timeout").fetchone()[0]
+                    with seen_lock:
+                        seen.append(val)
+
+            t = threading.Thread(target=probe)
+            t.start()
+            t.join()
+
+        assert seen, "probe thread did not run"
+        assert all(v > 0 for v in seen), f"busy_timeout not set: {seen}"

@@ -76,6 +76,12 @@ class BatchCache:
         if conn is None:
             conn = sqlite3.connect(str(self._db_path), isolation_level=None)
             conn.row_factory = sqlite3.Row
+            # Wait up to 5s for the WAL write-lock instead of raising
+            # OperationalError immediately. Under concurrent writes, exactly
+            # one writer holds the WAL at a time — without busy_timeout,
+            # every other concurrent writer gets `database is locked` and
+            # the test_thread_local_connections test flakes ~1/9 on Linux CI.
+            conn.execute("PRAGMA busy_timeout=5000")
             self._local.conn = conn
         return conn
 
