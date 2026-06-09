@@ -195,9 +195,7 @@ def test_log_sanitization():
         test_logger.removeHandler(handler)
         test_logger.propagate = previous_propagate
 
-    assert "SECRET_KEY_xyz" not in output, (
-        f"WBI key leaked into log output:\n{output}"
-    )
+    assert "SECRET_KEY_xyz" not in output, f"WBI key leaked into log output:\n{output}"
 
 
 # -- sanity check on the TTL constant --

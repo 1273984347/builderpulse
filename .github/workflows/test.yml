@@ -33,3 +33,7 @@ jobs:
         run: pytest tests/ --ignore=tests/test_transcribers.py -v
       - name: Check linting
         run: ruff check src/ tests/
+      - name: Verify pyproject.toml format + entry_points sort
+        run: |
+          python scripts/check_pyproject_format.py
+          python scripts/check_entry_points_sorted.py

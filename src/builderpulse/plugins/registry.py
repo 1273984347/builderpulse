@@ -191,10 +191,78 @@ class PluginRegistry:
 
     # -- public queries ------------------------------------------------------
 
-    def list_plugins(self, group: str) -> Dict[str, Any]:
-        """Return ``{name: instance}`` for all loaded plugins in *group*."""
+    # Group → Config field name for "enabled" filtering. Groups not listed
+    # here have no config-driven enable/disable (e.g. downloaders).
+    _ENABLED_FIELDS: Dict[str, str] = {
+        "sources": "enabled_sources",
+        "channels": "enabled_channels",
+    }
+
+    def list(self, group: str, enabled_only: bool = False) -> Dict[str, Any]:
+        """Return ``{name: instance}`` for all loaded plugins in *group*.
+
+        When *enabled_only* is True, the result is filtered by the user's
+        ``enabled_<group>`` list in :class:`Config`.  A missing config field
+        (e.g. v2.0.0 configs that pre-date this feature) is treated as
+        "all enabled" so users do not silently lose plugins.
+        """
         self._ensure_loaded(group)
-        return dict(self._plugins.get(group, {}))
+        all_plugins = dict(self._plugins.get(group, {}))
+        if not enabled_only:
+            return all_plugins
+
+        enabled_field = self._ENABLED_FIELDS.get(group)
+        if enabled_field is None:
+            return all_plugins
+
+        try:
+            from builderpulse.core.config_manager import ConfigManager
+
+            config = ConfigManager.get()
+            # hasattr() protects v2.0.0 users whose Config lacks the field
+            if not hasattr(config, enabled_field):
+                return all_plugins
+            enabled = getattr(config, enabled_field)
+            if enabled is None:
+                return all_plugins
+            return {k: v for k, v in all_plugins.items() if k in enabled}
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "list(%s, enabled_only=True) failed: %s; returning all",
+                group,
+                exc,
+            )
+            return all_plugins
+
+    def list_plugins(self, group: str) -> Dict[str, Any]:
+        """DEPRECATED: use :meth:`list` instead. Kept for v2.0.0 client compat."""
+        return self.list(group)
+
+    def list_all(self, group: str) -> Dict[str, Optional[Any]]:
+        """Return all entry-point names in *group*, including unloadable ones.
+
+        Used by ``bp config show`` to surface "newly available integrations"
+        even when their dependencies (extras) are not installed.  The result
+        maps ``entry_point.name`` to either the loaded plugin instance or
+        ``None`` when the entry point could not be loaded (missing extra,
+        protocol mismatch, import error, etc.).
+        """
+        self._ensure_loaded(group)
+        ep_group_str = self._ENTRY_POINT_GROUPS.get(group)
+        if ep_group_str is None:
+            return {}
+
+        try:
+            eps = entry_points(group=ep_group_str)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("list_all(%s) entry_points() failed: %s", group, exc)
+            return {}
+
+        loaded = self._plugins.get(group, {})
+        result: Dict[str, Optional[Any]] = {}
+        for ep in eps:
+            result[ep.name] = loaded.get(ep.name)
+        return result
 
     def get_plugin(self, group: str, name: str) -> Optional[Any]:
         """Return a single plugin by group + name, or ``None``."""

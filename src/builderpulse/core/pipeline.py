@@ -207,7 +207,7 @@ def _get_downloaders(config: Config | None) -> list:
     from builderpulse.plugins import PluginRegistry
 
     registry = PluginRegistry()
-    downloaders = list(registry.list_plugins("downloaders").values())
+    downloaders = list(registry.list("downloaders").values())
     if not downloaders:
         # Fallback to hardcoded defaults
         from builderpulse.engines.downloaders.bilibili import BilibiliDownloader
