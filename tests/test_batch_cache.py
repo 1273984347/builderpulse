@@ -187,7 +187,7 @@ class TestBatchCacheConcurrency:
         do not remove this PRAGMA without re-running the stress test on Linux.
         """
         db = tmp_path / "cache.db"
-        with BatchCache(db) as cache:
+        with BatchCache(db):
             seen: list[int] = []
             seen_lock = threading.Lock()
 
