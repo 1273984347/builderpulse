@@ -55,9 +55,7 @@ def test_list_returns_all_loaded_by_default(registry: PluginRegistry) -> None:
     """list(group) without enabled_only returns all loaded plugins."""
     # Patch entry_points to return no auto-discovered sources (e.g. suppress
     # github_trending from v2.1.0) so this test stays hermetic.
-    with patch(
-        "builderpulse.plugins.registry.entry_points", return_value=[]
-    ):
+    with patch("builderpulse.plugins.registry.entry_points", return_value=[]):
         registry.register("sources", _FakeSource("alpha"))
         registry.register("sources", _FakeSource("beta"))
         plugins = registry.list("sources")

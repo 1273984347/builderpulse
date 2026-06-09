@@ -51,7 +51,9 @@ def missing_config_path(tmp_path: Path, monkeypatch) -> Path:
 # ── test_config_show_includes_newly_available_section ───────────────────
 
 
-def test_config_show_includes_newly_available_section(tmp_config_path: Path, monkeypatch):
+def test_config_show_includes_newly_available_section(
+    tmp_config_path: Path, monkeypatch
+):
     """`bp config show` should always emit a 'Newly available' section header,
     even when no new integrations are installed in the current environment."""
     # Mock the registry to simulate the "no new plugins" state regardless of
