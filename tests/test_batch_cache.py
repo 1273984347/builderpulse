@@ -136,9 +136,7 @@ class TestBatchCacheConcurrency:
     Windows. With busy_timeout=5000, it must complete in ~1s with 0 errors.
     """
 
-    def test_high_contention_writes_succeed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_high_contention_writes_succeed(self, tmp_path: Path) -> None:
         db = tmp_path / "cache.db"
         errors: list[str] = []
         error_lock = threading.Lock()
@@ -158,17 +156,14 @@ class TestBatchCacheConcurrency:
                 with error_lock:
                     errors.append(f"t{tid}: {type(e).__name__}: {e}")
 
-        threads = [
-            threading.Thread(target=worker, args=(i,))
-            for i in range(N_THREADS)
-        ]
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(N_THREADS)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
 
-        assert errors == [], (
-            f"{len(errors)}/{N_THREADS} threads failed:\n" + "\n".join(errors[:5])
+        assert errors == [], f"{len(errors)}/{N_THREADS} threads failed:\n" + "\n".join(
+            errors[:5]
         )
 
         # Sanity: all 1000 rows landed
@@ -177,9 +172,7 @@ class TestBatchCacheConcurrency:
                 for i in range(N_WRITES):
                     assert cache.get(f"https://t{tid}.com/{i}") is not None
 
-    def test_busy_timeout_is_set_on_connections(
-        self, tmp_path: Path
-    ) -> None:
+    def test_busy_timeout_is_set_on_connections(self, tmp_path: Path) -> None:
         """Defends against future code changes that might drop the PRAGMA.
 
         Each new BatchCache connection must have busy_timeout > 0, otherwise
