@@ -44,9 +44,9 @@ wecom = "builderpulse.deliver.wecom:WeComChannel"
 
 [project.optional-dependencies]
 # Transcription engines (pick ONE — they conflict)
-whisper = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
-whisperx = ["whisperx>=3.1.1", "torch>=2.0", "torchaudio>=2.0", "pyannote.audio>=3.0", "numpy<2"]
-faster-whisper = ["faster-whisper>=0.10", "numpy<2"]
+whisper = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<3"]
+whisperx = ["whisperx>=3.1.1", "torch>=2.0", "torchaudio>=2.0", "pyannote.audio>=3.0", "numpy<3"]
+faster-whisper = ["faster-whisper>=0.10", "numpy<3"]
 # Browser automation (Bilibili + Douyin browser mode)
 browser = ["playwright>=1.40"]
 # Content sources
@@ -62,7 +62,7 @@ mcp = ["mcp>=1.0"]
 # Keyring for secrets
 secrets = ["keyring>=24.0"]
 # CPU-only variant (no CUDA)
-cpu = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<2"]
+cpu = ["openai-whisper>=20231117", "torch>=2.0", "torchaudio>=2.0", "numpy<3"]
 # Dev
 dev = [
     "pytest>=7.4",
