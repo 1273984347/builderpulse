@@ -1,0 +1,109 @@
+name: Actions Usage Monitor (N23)
+
+# GitHub Actions monthly usage 监控 — 主动查 billing API + 三档阈值预警
+# 触发: 每月 1 号 09:00 UTC 自动跑 (用户可调整 schedule)
+# 替代: 等 GitHub 100% 提醒的被动响应范式 (S35d INCIDENT 治本)
+# 前置: 用户配置 ACTIONS_BILLING_PAT secret (PAT with billing:read scope, 走 GitHub Secrets)
+
+'on':
+  schedule:
+    - cron: '0 9 1 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (不真创建 issue, 只输出 usage)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install gh CLI
+        run: gh --version
+
+      - name: Query billing API
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_BILLING_PAT }}
+        run: |
+          echo "=== GitHub Actions Billing API Query ==="
+          BILLING_JSON=$(gh api user/settings/billing/actions)
+          echo "$BILLING_JSON" | jq '.'
+          TOTAL_MIN=$(echo "$BILLING_JSON" | jq -r '.total_minutes_used // 0')
+          INCLUDED_MIN=$(echo "$BILLING_JSON" | jq -r '.included_minutes // 2000')
+          PCT=$((TOTAL_MIN * 100 / INCLUDED_MIN))
+          echo ""
+          echo "=== Usage Summary ==="
+          echo "Total minutes used: $TOTAL_MIN"
+          echo "Included minutes: $INCLUDED_MIN"
+          echo "Percentage: ${PCT}%"
+          echo "total_minutes=$TOTAL_MIN" >> $GITHUB_OUTPUT
+          echo "included_minutes=$INCLUDED_MIN" >> $GITHUB_OUTPUT
+          echo "percentage=$PCT" >> $GITHUB_OUTPUT
+
+      - name: Check thresholds
+        id: thresholds
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          TOTAL_MIN=$(cat $GITHUB_OUTPUT | grep total_minutes | cut -d= -f2)
+          PCT=$(cat $GITHUB_OUTPUT | grep percentage | cut -d= -f2)
+          if [ "$PCT" -ge 100 ]; then
+            echo "level=critical" >> $GITHUB_OUTPUT
+            echo "::error::100% Actions minutes used ($TOTAL_MIN / included) P0 incident"
+          elif [ "$PCT" -ge 90 ]; then
+            echo "level=alert" >> $GITHUB_OUTPUT
+            echo "::warning::90% Actions minutes used ($TOTAL_MIN / included)"
+          elif [ "$PCT" -ge 80 ]; then
+            echo "level=warning" >> $GITHUB_OUTPUT
+            echo "::notice::80% Actions minutes used ($TOTAL_MIN / included)"
+          else
+            echo "level=ok" >> $GITHUB_OUTPUT
+            echo "::notice::Usage OK ($PCT%)"
+          fi
+
+      - name: Create issue (80/90/100 thresholds)
+        if: steps.thresholds.outputs.level != 'ok' && inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LEVEL=$(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)
+          TOTAL_MIN=$(cat $GITHUB_OUTPUT | grep total_minutes | cut -d= -f2)
+          PCT=$(cat $GITHUB_OUTPUT | grep percentage | cut -d= -f2)
+          if [ "$LEVEL" = "critical" ]; then
+            LABEL="ci-usage-exceeded"
+            TITLE="P0 INCIDENT: GitHub Actions 100 percent minutes used"
+            printf '🚨 P0 INCIDENT 🚨\n\nGitHub Actions minutes 已用完 (%s percent, %s / included).\n\n触发时间 %s\nworkflow: actions-usage-monitor (N23)\n\n影响: 所有 scheduled workflows 必然 fail until 下月 reset.\n\n行动:\n1. 暂停 cron workflow (避免更多 minutes 消耗)\n2. 升级 GitHub plan (如果需要持续 CI)\n3. 优化 CI matrix (减少 jobs/PR)\n4. 等下月 1 号 reset\n\n关联: S35d INCIDENT retro (logs/incident/2026-06-14-actions-100-percent.md)\n' "$PCT" "$TOTAL_MIN" "$(date -u)" > /tmp/body.md
+          elif [ "$LEVEL" = "alert" ]; then
+            LABEL="ci-usage-warning"
+            TITLE="ALERT: GitHub Actions 90 percent minutes used"
+            printf '⚠️ ALERT ⚠️\n\nGitHub Actions minutes 已用 90 percent (%s, %s / included).\n\n触发时间 %s\nworkflow: actions-usage-monitor (N23)\n\n建议: 减少 CI matrix jobs, 暂停非关键 cron, 准备升级 plan.\n' "$PCT" "$TOTAL_MIN" "$(date -u)" > /tmp/body.md
+          else
+            LABEL="ci-usage-warning"
+            TITLE="WARNING: GitHub Actions 80 percent minutes used"
+            printf 'ℹ️ WARNING ℹ️\n\nGitHub Actions minutes 已用 80 percent (%s, %s / included).\n\n触发时间 %s\nworkflow: actions-usage-monitor (N23)\n\n建议: 监控后续用量, 考虑优化 CI 流程.\n' "$PCT" "$TOTAL_MIN" "$(date -u)" > /tmp/body.md
+          fi
+          EXISTING=$(gh issue list --label "$LABEL" --state open --json number --jq 'length')
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "Issue with label '$LABEL' already open (count=$EXISTING), skip"
+            exit 0
+          fi
+          gh issue create --title "$TITLE" --body-file /tmp/body.md --label "$LABEL"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== N23 Actions Usage Monitor Summary ==="
+          echo "Level: $(cat $GITHUB_OUTPUT | grep level | cut -d= -f2)"
+          echo "Total minutes: $(cat $GITHUB_OUTPUT | grep total_minutes | cut -d= -f2)"
+          echo "Percentage: $(cat $GITHUB_OUTPUT | grep percentage | cut -d= -f2)%"
+          echo "Dry run: ${{ inputs.dry_run }}"
