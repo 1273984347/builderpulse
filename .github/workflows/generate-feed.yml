@@ -22,16 +22,6 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -e ".[sources]"
-      - run: python -c "
-          from builderpulse.sources.podcast import PodcastSource;
-          from builderpulse.sources.twitter import TwitterSource;
-          from builderpulse.sources.blog import BlogSource;
-          import json;
-          items = [];
-          items.extend(PodcastSource().fetch());
-          items.extend(TwitterSource().fetch());
-          items.extend(BlogSource().fetch());
-          print(json.dumps([{'title':i.title,'url':i.url} for i in items[:50]], indent=2));
-          "
+      - run: python -c "from builderpulse.sources.podcast import PodcastSource; from builderpulse.sources.twitter import TwitterSource; from builderpulse.sources.blog import BlogSource; import json; items = []; items.extend(PodcastSource().fetch()); items.extend(TwitterSource().fetch()); items.extend(BlogSource().fetch()); print(json.dumps([dict(title=i.title, url=i.url) for i in items[:50]], indent=2));"
         env:
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
