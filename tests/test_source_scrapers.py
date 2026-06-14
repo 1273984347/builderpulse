@@ -56,13 +56,22 @@ class TestBlogSource:
         assert items[0].published_at == "2026-06-01T10:00:00Z"
 
     def test_fetch_article_with_meta_date(self, monkeypatch):
-        """Articles with <meta property='article:published_time'> are parsed."""
-        html = """
+        """Articles with <meta property='article:published_time'> are parsed.
+
+        Uses a dynamic date (5 days ago) to stay inside the 30-day lookback window
+        regardless of when the test is run. Previously hardcoded "2026-05-15" which
+        drifted outside the 30-day window by 2026-06-14, causing CI matrix-wide
+        failures (Session 35d fix).
+        """
+        from datetime import datetime, timedelta, timezone
+
+        published_at = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        html = f"""
         <html><body>
         <article>
             <h2><a href="/post-2">Second Post</a></h2>
             <p>Summary.</p>
-            <meta property="article:published_time" content="2026-05-15T08:00:00Z">
+            <meta property="article:published_time" content="{published_at}">
         </article>
         </body></html>
         """
@@ -78,7 +87,7 @@ class TestBlogSource:
         monkeypatch.setattr(src._client, "get", lambda url: FakeResponse())
         items = src.fetch(days=30)
         assert len(items) == 1
-        assert items[0].published_at == "2026-05-15T08:00:00Z"
+        assert items[0].published_at == published_at
 
     def test_fetch_link_fallback(self, monkeypatch):
         """When no articles found, falls back to extracting links."""
