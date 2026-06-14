@@ -1,0 +1,47 @@
+{
+  "_note": "BuilderPulse example config. Copy to ~/.builderpulse/config.json (or set BUILDERPULSE_CONFIG_PATH to point here) and edit. Empty list for a source means 'do not fetch from this source' (cron will pass with no items, no error). Sensitive channel fields (botToken, apiKey, apiSecret, sessdata, password, secret) are masked in `bp config show` output. Set them via environment variables BUILDERPULSE_TELEGRAM_BOT_TOKEN etc. - see README Configuration section.",
+  "__version__": "2.1.0",
+  "language": "en",
+  "engine": "auto",
+  "model": "base",
+  "device": "auto",
+  "enabled_sources": [
+    "bilibili",
+    "youtube",
+    "podcast",
+    "blog",
+    "twitter"
+  ],
+  "enabled_channels": [
+    "telegram",
+    "email",
+    "lark",
+    "dingtalk",
+    "discord",
+    "wecom",
+    "wechat",
+    "stderr"
+  ],
+  "sources": {
+    "podcast": {
+      "_note": "List of RSS feed URLs to fetch podcast episodes from.",
+      "feeds": []
+    },
+    "twitter": {
+      "_note": "List of X/Twitter account handles to fetch. Requires X_BEARER_TOKEN environment variable (or X API v2 bearer token in your account settings).",
+      "accounts": []
+    },
+    "blog": {
+      "_note": "List of blog URLs to scrape. Use full URLs (https://...).",
+      "urls": []
+    },
+    "bilibili": {
+      "_note": "List of Bilibili user IDs (numeric, e.g. 123456) to fetch videos from.",
+      "users": []
+    },
+    "youtube": {
+      "_note": "List of YouTube channel IDs (UC...) to fetch videos from.",
+      "channels": []
+    }
+  }
+}

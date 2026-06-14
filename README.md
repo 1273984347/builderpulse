@@ -261,6 +261,42 @@ pip install builderpulse[llm]               # + OpenAI + Anthropic + Ollama SDKs
 pip install builderpulse[secrets]           # + keyring for secure credential storage
 ```
 
+## Configuration
+
+BuilderPulse reads a JSON config file. By default it looks at `~/.builderpulse/config.json`; you can override with the `BUILDERPULSE_CONFIG_PATH` environment variable (12-factor app convention).
+
+```bash
+# 1. Copy the example to your home directory
+mkdir -p ~/.builderpulse
+cp config.example.json ~/.builderpulse/config.json
+
+# 2. Edit it with your own feeds, accounts, and channel credentials
+$EDITOR ~/.builderpulse/config.json
+```
+
+### What's in `config.example.json`
+
+- **`enabled_sources`** / **`enabled_channels`** — which built-in plugins to use
+- **`sources.{podcast,twitter,blog,bilibili,youtube}`** — per-source config
+  - `podcast.feeds`: list of RSS feed URLs
+  - `twitter.accounts`: list of X/Twitter account handles (requires `X_BEARER_TOKEN` env var)
+  - `blog.urls`: list of blog URLs to scrape
+  - `bilibili.users`: list of Bilibili user IDs (numeric)
+  - `youtube.channels`: list of YouTube channel IDs (`UC...`)
+- **Empty lists = "skip this source"** — your cron still runs, the source is just not fetched
+
+### Optional environment variables
+
+| Variable | Purpose | Required? |
+|:---------|:--------|:----------|
+| `X_BEARER_TOKEN` | X/Twitter API v2 bearer token. Without it, `twitter.accounts` is silently skipped | No (only for Twitter) |
+| `BUILDERPULSE_CONFIG_PATH` | Override default config location (`~/.builderpulse/config.json`) | No |
+| `BUILDERPULSE_TELEGRAM_BOT_TOKEN`, `BUILDERPULSE_TELEGRAM_CHAT_ID`, etc. | Per-channel credentials (overrides JSON file values) | No (only if you use those channels) |
+
+### Privacy
+
+This repo's `config.example.json` ships with **empty lists only** — your personal feeds and tokens are not (and should never be) committed. Use environment variables or your local `~/.builderpulse/config.json` (gitignored by default) for credentials.
+
 ## Supported Sources
 
 | Source | Engine | API Key Required |
