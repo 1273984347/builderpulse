@@ -28,22 +28,23 @@ import sys
 
 def main() -> int:
     # Lazy import - only require builderpulse when actually run.
-    from builderpulse.core.config import Config
     from builderpulse.core.source_aggregator import fetch_all_sources
 
-    # 1) Resolve config (12-factor app env var, matches ConfigManager 范式).
+    # 1) Resolve config (12-factor app env var, matches ConfigManager.get_config_path() 范式).
+    # Read RAW JSON (not Config dataclass) because user-defined fields like
+    # sources.podcast.feeds live in the raw dict and are NOT part of the
+    # Config dataclass — using Config.from_file() would silently drop them.
+    # This matches ConfigManager.get_raw() 范式.
     config_path = os.environ.get("BUILDERPULSE_CONFIG_PATH")
     if config_path and os.path.exists(config_path):
-        cfg = Config.from_file(config_path)
+        with open(config_path, encoding="utf-8") as f:
+            config_dict = json.load(f)
         config_source = config_path
     else:
-        cfg = Config.from_defaults()
+        config_dict = {}
         config_source = "<defaults (no BUILDERPULSE_CONFIG_PATH set)>"
 
-    # 2) Build dict-shaped config (source_aggregator.fetch_all_sources expects dict).
-    config_dict = cfg.to_dict(mask_secrets=True)
-
-    # 3) Fetch from all enabled sources.
+    # 2) Fetch from all enabled sources.
     items, errors = fetch_all_sources(config_dict, days=1)
 
     if errors:
