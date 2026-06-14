@@ -167,8 +167,7 @@ class TestBatchCacheConcurrency:
         # (Session 35d investigation). Tighten back to == [] if you fix BatchCache threading.
         max_failures = max(1, N_THREADS // 20)
         assert len(errors) <= max_failures, (
-            f"{len(errors)}/{N_THREADS} threads failed:\n"
-            + "\n".join(errors[:5])
+            f"{len(errors)}/{N_THREADS} threads failed:\n" + "\n".join(errors[:5])
         )
 
         # Sanity: all 1000 rows landed

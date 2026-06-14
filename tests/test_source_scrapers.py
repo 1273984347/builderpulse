@@ -65,7 +65,9 @@ class TestBlogSource:
         """
         from datetime import datetime, timedelta, timezone
 
-        published_at = (datetime.now(timezone.utc) - timedelta(days=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        published_at = (datetime.now(timezone.utc) - timedelta(days=5)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         html = f"""
         <html><body>
         <article>
