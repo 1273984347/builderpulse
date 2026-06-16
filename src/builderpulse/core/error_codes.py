@@ -60,6 +60,13 @@ class ErrorCode(str, Enum):
     # both are valid, just inconsistent. Documented here for symmetry.
     BP_I18N_DRIFT = "BP_I18N_DRIFT"
 
+    # S1 T5 (v2.2.0) — Docker build failures (e.g. Dockerfile syntax error,
+    # missing dependency, network failure during pip install). Emitted when
+    # `docker build` exits non-zero; surfaced to MCP clients via emit_error()
+    # so users get a structured code instead of raw stderr.
+    # Value convention: enum value matches member name (SCREAMING_SNAKE_CASE).
+    BP_DOCKER_BUILD_FAIL = "BP_DOCKER_BUILD_FAIL"
+
     # v2.1.0 — dynamic PluginRegistry behavior
     # (member name: SCREAMING_SNAKE_CASE; value: lowercase dotted form for
     # downstream MCP/agent consumption; emitted by source/channel lifecycle.)

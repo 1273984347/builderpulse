@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  builderpulse:
+    build: .
+    image: builderpulse:2.2.0
+    container_name: builderpulse
+    restart: unless-stopped
+
+    # MCP server 是 stdio, 不暴露 port
+    env_file:
+      - .env   # 用户自建, .gitignore 排除
+
+    volumes:
+      - ./output:/app/output           # 转写结果 / 摘要输出
+      - ./logs:/app/logs               # 容器日志 (跟 host 共享)
+      - ./config/local.json:/app/config/local.json:ro   # 只读自定义 config
+
+    # 资源限制 (中等配置, 2 CPU + 4G RAM)
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import builderpulse"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # 默认命令: CLI mode (one-shot 转写)
+    command: ["python", "-m", "builderpulse", "run"]

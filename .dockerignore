@@ -1,0 +1,45 @@
+# 不复用 .gitignore, Docker build context 跟 git tracking 不同
+
+# Git / IDE
+.git/
+.gitignore
+.github/
+.vscode/
+.cursor/
+.idea/
+
+# Python 缓存 / 测试
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 文档 / 测试 (不进 image)
+docs/superpowers/plans/
+tests/
+*.md
+backups/
+
+# 产物
+build/
+dist/
+*.egg-info/
+
+# 用户配置 (运行时挂载, 不进 image)
+config/local.json
+.env
+output/
+logs/
+
+# 备份
+*.bak
+*.bak-*
