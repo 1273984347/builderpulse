@@ -5,6 +5,26 @@ All notable changes to BuilderPulse will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-17 (S1: i18n + Docker)
+
+### Added
+
+- **i18n 双语 README**: split into `README.md` (English) + `README.zh-CN.md`
+  (Chinese, preserved). 15 H2 sections correspond 1:1. Bilingual drift test
+  prevents translation drift.
+- **Docker 化**: multi-stage `Dockerfile` (python:3.12-slim, tini PID 1,
+  ffmpeg, ~600MB image) + `docker-compose.yml` (single service, stdio MCP,
+  no exposed port) + `.dockerignore`. `docker compose up` one-command
+  deploy.
+- **Error codes**: `BP_I18N_DRIFT` (BPI18N001) + `BP_DOCKER_BUILD_FAIL`
+  (BPDOCKER001).
+
+### Notes
+
+- S2 (Plugin 扩展 4 改动) + S3 (Test + Release) 后续 sub-sessions 追加
+- v2.2.0 minor bump per user decision (实际改动量是 major refactor, 但
+  shim 保证 no breaking changes)
+
 ## [2.0.0] - 2026-06-04
 
 ### Added
