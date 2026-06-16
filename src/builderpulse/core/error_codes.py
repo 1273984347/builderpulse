@@ -49,6 +49,11 @@ class ErrorCode(str, Enum):
     CONFIG_NOT_FOUND = "CONFIG_NOT_FOUND"
     CONFIG_INVALID = "CONFIG_INVALID"
 
+    # i18n (S1 T3, v2.2.0) — bilingual README drift detection
+    # Emitted by tests/test_i18n_drift.py when README.md and README.zh-CN.md
+    # have mismatched H2 sections or missing required keywords.
+    BP_I18N_DRIFT = "BP_I18N_DRIFT"
+
     # v2.1.0 — dynamic PluginRegistry behavior
     # (member name: SCREAMING_SNAKE_CASE; value: lowercase dotted form for
     # downstream MCP/agent consumption; emitted by source/channel lifecycle.)
