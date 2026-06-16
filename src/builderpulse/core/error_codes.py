@@ -50,8 +50,14 @@ class ErrorCode(str, Enum):
     CONFIG_INVALID = "CONFIG_INVALID"
 
     # i18n (S1 T3, v2.2.0) — bilingual README drift detection
-    # Emitted by tests/test_i18n_drift.py when README.md and README.zh-CN.md
-    # have mismatched H2 sections or missing required keywords.
+    # Available for emission by tests/test_i18n_drift.py (which currently
+    # uses assert failures; future versions may call emit_error() with this
+    # code when README.md and README.zh-CN.md have mismatched H2 sections
+    # or missing required keywords).
+    # Value convention: enum value matches member name (SCREAMING_SNAKE_CASE).
+    # Note: this differs from the older "lowercase dotted form" convention
+    # used by some v2.1.0 codes below (e.g. SOURCE_MISSING_CREDENTIALS);
+    # both are valid, just inconsistent. Documented here for symmetry.
     BP_I18N_DRIFT = "BP_I18N_DRIFT"
 
     # v2.1.0 — dynamic PluginRegistry behavior
