@@ -2,6 +2,8 @@
 
 > Stop manually checking 10+ sites for AI builder updates. One command, everything delivered.
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 **Before:**
 ```
 Morning routine (30+ minutes):

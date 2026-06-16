@@ -2,6 +2,8 @@
 
 > 不再手动刷 10+ 个网站追 AI builder 动态。一条命令，全部送达。
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 **之前（每天 30+ 分钟）：**
 ```
 1. 打开 YouTube → 检查 5 个频道 → 复制链接
@@ -53,6 +55,198 @@ bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
 bp serve
 ```
 
+## 如何使用 BuilderPulse
+
+BuilderPulse 提供 **4 种使用方式**，每种适合不同场景。根据你的需求选一种。
+
+### 1. 💻 CLI — 临时命令和定时任务
+
+**适用场景**：想跑一条快速命令、cron 任务、临时任务。除了 `pip install` 之外无需任何配置。
+
+#### 每日早间摘要（杀手级用例）
+
+```bash
+bp digest --lang zh --deliver telegram
+# → 从所有源抓取，调用你的 LLM 摘要，发送到 Telegram
+# 大约 30 秒搞定
+```
+
+用 `cron` / `Task Scheduler` 定时在每天早上 8 点触发。示例见 [docs/scheduling.md](docs/scheduling.md)。
+
+#### 转录刚发现的单个视频
+
+```bash
+bp transcribe "https://www.bilibili.com/video/BV1xxxx" --engine faster-whisper
+# → 下载、转录（如需）、保存 markdown 到 ./output/
+```
+
+#### 追完某个 UP 主的全部更新（断点续传）
+
+```bash
+bp batch "https://space.bilibili.com/123456" --limit 20 --summarize
+# → 处理 20 个视频。中断（Ctrl+C）后再跑，从断点续跑。
+# SQLite 缓存保证同一 URL 不会被重复处理。
+```
+
+#### 查看或修改配置
+
+```bash
+bp config show                    # 查看所有设置（密钥自动脱敏）
+bp config init                    # 生成一份 config.json 模板
+```
+
+---
+
+### 2. 🤖 MCP Server — 接入 AI Agent（Claude Code、Cursor 等）
+
+**适用场景**：想让你的 AI Agent 对话式地帮你抓取 / 转录 / 摘要。
+
+#### Claude Code 配置（`~/.claude.json` 或 `.mcp.json`）
+
+```json
+{
+  "mcpServers": {
+    "builderpulse": {
+      "command": "bp",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+重启 Claude Code 后，你会看到 6 个新工具：`bp_transcribe`、`bp_digest`、`bp_process`、`bp_fetch_feed`、`bp_list_sources`、`bp_config`。
+
+#### 对话中的效果
+
+```
+你：   "给我一份昨天的 AI builder 摘要，中文版，发送到我的 Telegram"
+Agent：[调用 bp_digest] → ✓ 已送达
+```
+
+#### Cursor / Continue / Windsurf 配置
+
+同样的 JSON 配置即可。`bp serve` 子进程通过 stdio 跑 JSON-RPC 2.0，所有 MCP 客户端都能识别。
+
+---
+
+### 3. 🐍 Python API — 嵌入到你自己的代码
+
+**适用场景**：你在做定制工具、仪表盘、自动化，需要用 BuilderPulse 的零件但不要 CLI/MCP 层。
+
+```python
+from builderpulse.sources.youtube import YouTubeSource
+from builderpulse.remix.summarizer import Summarizer
+from builderpulse.deliver import get_channel
+
+# 从源抓取
+src = YouTubeSource()
+items = src.fetch(limit=10, days=7)
+
+# 摘要
+summarizer = Summarizer(llm="claude")  # 或 "openai"、"ollama"
+for item in items:
+    item.summary = summarizer.summarize(item.content)
+
+# 投递
+ch = get_channel("telegram")
+ch.send(format_digest(items), title="My Daily Digest")
+```
+
+每个模块（`sources/`、`remix/`、`deliver/`）都可以独立导入。完整接口见 [docs/api.md](docs/api.md)。
+
+---
+
+### 4. 🔌 插件系统 — 添加你自己的源 / 投递渠道
+
+**适用场景**：内置的 6 个源或 8 个投递渠道满足不了你的需求。
+
+在 `pyproject.toml` 里挂一个带 entry-point 的 Python 文件：
+
+```toml
+[project.entry-points."builderpulse.sources"]
+my_custom_source = "my_pkg.source:MySource"
+```
+
+你的类只需要满足一个 `Protocol`（源的 `fetch` 方法、渠道的 `deliver` 方法），就会自动出现在 `bp fetch` / `bp digest` / `bp serve` 里。完整契约见 [docs/plugins.md](docs/plugins.md)。
+
+---
+
+### 5. ✨ 作者本人的使用方式
+
+下面三种是我日常使用 BuilderPulse 的方式，覆盖了约 95% 的使用场景。
+
+#### 🌅 每日早间摘要（每天必跑）
+
+每个工作日早上 8:05，我家用 Windows 的 Task Scheduler 触发 `bp digest`。结果在我喝咖啡时就送到 Telegram 了，我在通勤路上读。
+
+```cmd
+schtasks /create /tn "BuilderPulse Morning" /tr "bp digest --lang zh --sources podcast,youtube,bilibili,blog --deliver telegram" /sc daily /st 08:05
+```
+
+端到端大约 25 秒。如果看到感兴趣的内容，直接从 Telegram 点源链接。
+
+#### 🤖 在 Claude Code 里（工作时）
+
+我在 Claude Code 里把 `bp serve` 作为 MCP 工具挂着。写代码时想知道"这个 builder 这周发了什么"，直接问：
+
+```
+> 抓取我在关注的这个创作者这周的 B 站视频，摘要其中最值得看的一条
+```
+
+Claude Code 调 `bp_fetch_feed` → `bp_digest` → 返回一段一段话的摘要。无须切换上下文、无须复制粘贴。
+
+```json
+// ~/.claude.json
+{
+  "mcpServers": {
+    "builderpulse": { "command": "bp", "args": ["serve"] }
+  }
+}
+```
+
+#### 📚 周六补清单（断点续传）
+
+周六早上第二杯咖啡时，我对某个落下一堆更新的创作者跑 `bp batch`：
+
+```bash
+bp batch "https://space.bilibili.com/123456" --limit 30 --summarize --engine faster-whisper
+```
+
+处理 30 个视频。如果周六有事被打断，`Ctrl+C`。下周六再跑，从 SQLite 缓存的视频 14 续跑，不会重下。`--engine faster-whisper` 意味着不用 GPU，CPU 也能跑。
+
+---
+
+**你呢？** 欢迎开 issue 或 PR 分享你的使用场景 — 最好的文档来自真实工作流。
+
+---
+
+## 选择合适的方法
+
+| 场景 | 用什么 |
+|:-----|:-------|
+| "我只想今天的摘要送到我 Telegram" | **CLI**（`bp digest`） |
+| "我想每天早上 8 点自动跑" | **CLI** + cron / Task Scheduler |
+| "我的 AI Agent 帮我做" | **MCP**（Claude Code / Cursor） |
+| "我要在它上面做定制工具" | **Python API** |
+| "我需要新源 / 新投递渠道" | **插件** |
+| "我要追 100 个视频" | **CLI**（`bp batch`，断点续传） |
+
+---
+
+## 典型 pipeline 怎么跑
+
+```
+[源] → [下载器] → [转录器] → [摘要器] → [投递渠道]
+ ↓        ↓         ↓          ↓           ↓
+YouTube  yt-dlp   faster-whisper  Claude   Telegram
+B站      API+playwright  WhisperX   GPT-4    Email
+播客     RSS+asr   OpenAI Whisper  Ollama   Discord
+博客     html 抓取
+Twitter  API v2 / Nitter
+```
+
+每一步独立。某一步失败时，错误会带着类型化错误码被捕获，流水线继续往下走。详见 [docs/error-codes.md](docs/error-codes.md)。
+
 ## 安装
 
 ```bash
@@ -65,6 +259,42 @@ pip install builderpulse[sources]           # + feedparser + tweepy + BeautifulS
 pip install builderpulse[llm]               # + OpenAI + Anthropic + Ollama SDK
 pip install builderpulse[secrets]           # + keyring 安全凭证存储
 ```
+
+## 配置
+
+BuilderPulse 读一个 JSON 配置文件。默认路径 `~/.builderpulse/config.json`，也可以用 `BUILDERPULSE_CONFIG_PATH` 环境变量覆盖（12-factor app 约定）。
+
+```bash
+# 1. 把示例配置复制到家目录
+mkdir -p ~/.builderpulse
+cp config.example.json ~/.builderpulse/config.json
+
+# 2. 编辑你自己的源、账号、渠道凭证
+$EDITOR ~/.builderpulse/config.json
+```
+
+### `config.example.json` 里有什么
+
+- **`enabled_sources`** / **`enabled_channels`** — 启用哪些内置插件
+- **`sources.{podcast,twitter,blog,bilibili,youtube}`** — 每个源的配置
+  - `podcast.feeds`：RSS feed URL 列表
+  - `twitter.accounts`：X/Twitter 账号列表（需要 `X_BEARER_TOKEN` 环境变量）
+  - `blog.urls`：要抓取的博客 URL 列表
+  - `bilibili.users`：B站用户 ID 列表（数字）
+  - `youtube.channels`：YouTube 频道 ID 列表（`UC...`）
+- **空列表 = "跳过这个源"** — 你的 cron 照样跑，只是这个源不抓取
+
+### 可选环境变量
+
+| 变量 | 作用 | 是否必需 |
+|:-----|:-----|:---------|
+| `X_BEARER_TOKEN` | X/Twitter API v2 bearer token。没有它，`twitter.accounts` 会被静默跳过 | 否（仅 Twitter 需要） |
+| `BUILDERPULSE_CONFIG_PATH` | 覆盖默认配置位置（`~/.builderpulse/config.json`） | 否 |
+| `BUILDERPULSE_TELEGRAM_BOT_TOKEN`、`BUILDERPULSE_TELEGRAM_CHAT_ID` 等 | 各渠道凭证（覆盖 JSON 文件里的值） | 否（用对应渠道时才需要） |
+
+### 隐私
+
+本仓库的 `config.example.json` 只发 **空列表** — 你的个人源和 token 不应该（也永远不要）提交。用环境变量或本地 `~/.builderpulse/config.json`（默认在 .gitignore 里）来存凭证。
 
 ## 支持的源
 
