@@ -34,7 +34,7 @@ jobs:
           test -f dist/*.tar.gz || (echo "Sdist missing" && exit 1)
 
       - name: Create GitHub Release (DRAFT)
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
@@ -51,7 +51,7 @@ jobs:
           pip install --upgrade --index-url https://pypi.org/simple/ builderpulse==${{ github.ref_name }} --dry-run 2>&1 | tail -3
 
       - name: Promote GH Release from draft to published
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           draft: false
