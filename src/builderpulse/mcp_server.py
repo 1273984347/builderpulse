@@ -248,6 +248,64 @@ TOOLS = [
             "required": ["action"],
         },
     },
+    {
+        "name": "bp_search_similar",
+        "description": "Search similar content using RAG (Qdrant vector search). Returns top-k similar documents.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query text",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Number of results to return",
+                },
+                "collection": {
+                    "type": "string",
+                    "default": "builderpulse",
+                    "description": "Qdrant collection name",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "bp_generate_response",
+        "description": "Generate AI response using LLM (Claude/OpenAI/Ollama). Supports system prompt + context.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "User prompt",
+                },
+                "system": {
+                    "type": "string",
+                    "default": "",
+                    "description": "System prompt (optional)",
+                },
+                "context": {
+                    "type": "string",
+                    "default": "",
+                    "description": "RAG context (optional, from bp_search_similar)",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "auto",
+                    "description": "LLM model (auto/claude-sonnet-4-6/gpt-4/ollama/...)",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 1024,
+                    "description": "Max output tokens",
+                },
+            },
+            "required": ["prompt"],
+        },
+    },
 ]
 
 # ── Tool handlers ───────────────────────────────────────────────
@@ -262,6 +320,8 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
         "bp_fetch_feed": _handle_fetch_feed,
         "bp_list_sources": _handle_list_sources,
         "bp_config": _handle_config,
+        "bp_search_similar": _handle_search_similar,
+        "bp_generate_response": _handle_generate_response,
     }
 
     handler = handlers.get(tool_name)
@@ -491,3 +551,64 @@ def _handle_config(action: str, key: str = None, value: str = None) -> dict:
         }
     else:
         return {"error": "Invalid config action. Valid actions: get, show."}
+
+
+def _handle_search_similar(
+    query: str, top_k: int = 10, collection: str = "builderpulse"
+) -> dict:
+    """Search similar content using RAG (Qdrant vector search)."""
+    try:
+        from builderpulse.rag.channel import RAGChannel
+
+        channel = RAGChannel(collection=collection)
+        results = channel.search(query, top_k=top_k)
+
+        return {
+            "query": query,
+            "result_count": len(results),
+            "results": [
+                {
+                    "id": r["id"],
+                    "score": r["score"],
+                    "text": r["text"][:500],
+                    "metadata": r.get("metadata", {}),
+                }
+                for r in results
+            ],
+        }
+    except Exception as e:
+        return {"error": f"RAG search failed: {e}"}
+
+
+def _handle_generate_response(
+    prompt: str,
+    system: str = "",
+    context: str = "",
+    model: str = "auto",
+    max_tokens: int = 1024,
+) -> dict:
+    """Generate AI response using LLM."""
+    try:
+        from builderpulse.remix.summarizer import Summarizer
+
+        summarizer = Summarizer(model=model)
+
+        # 构建完整 prompt
+        full_prompt = prompt
+        if context:
+            full_prompt = f"Context:\n{context}\n\nQuestion: {prompt}"
+
+        response = summarizer.summarize(
+            text=full_prompt,
+            system_prompt=system or "You are a helpful assistant.",
+            max_tokens=max_tokens,
+        )
+
+        return {
+            "response": response,
+            "model": model,
+            "prompt_tokens": len(prompt.split()),
+            "max_tokens": max_tokens,
+        }
+    except Exception as e:
+        return {"error": f"LLM generation failed: {e}"}
