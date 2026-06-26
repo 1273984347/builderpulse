@@ -51,19 +51,28 @@ class RAGChannel:
                 ),
             )
 
+    # sentence-transformers 模型缓存 (避免每次 search 都加载)
+    _model_cache = {}
+
     def _embed(self, text: str) -> list[float]:
-        """用 sentence-transformers 生成语义向量。"""
-        try:
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer('all-MiniLM-L6-v2')
-            vec = model.encode(text).tolist()
-            return vec
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("sentence-transformers failed: %s, using fallback", e)
-            # fallback: SHA256 hash (语义无意义, 仅用于 demo)
-            h = hashlib.sha256(text.encode()).hexdigest()
-            return [float(int(h[i % len(h)], 16)) / 15.0 for i in range(self.vector_size)]
+        """用 sentence-transformers 生成语义向量 (带缓存)。"""
+        model_name = 'all-MiniLM-L6-v2'
+
+        # 检查缓存
+        if model_name not in self._model_cache:
+            try:
+                from sentence_transformers import SentenceTransformer
+                self._model_cache[model_name] = SentenceTransformer(model_name)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("sentence-transformers failed: %s, using fallback", e)
+                # fallback: SHA256 hash (语义无意义, 仅用于 demo)
+                h = hashlib.sha256(text.encode()).hexdigest()
+                return [float(int(h[i % len(h)], 16)) / 15.0 for i in range(self.vector_size)]
+
+        model = self._model_cache[model_name]
+        vec = model.encode(text).tolist()
+        return vec
 
     def add_documents(self, documents: list[dict]) -> int:
         """添加文档到 Qdrant。"""
