@@ -1,20 +1,21 @@
-version: "3.9"
-
 services:
   builderpulse:
     build: .
-    image: builderpulse:2.2.0
+    image: builderpulse:2.2.0  # R1b B-9: aligned with pyproject.toml + __version__
     container_name: builderpulse
     restart: unless-stopped
 
     # MCP server 是 stdio, 不暴露 port
-    env_file:
-      - .env   # 用户自建, .gitignore 排除
+    # BuilderPulse 配置走 ~/.builderpulse/config.json (host mount, 见 volumes)
 
     volumes:
       - ./output:/app/output           # 转写结果 / 摘要输出
       - ./logs:/app/logs               # 容器日志 (跟 host 共享)
       - ./config/local.json:/app/config/local.json:ro   # 只读自定义 config
+      # BuilderPulse 默认 config 路径 (v2.1+) — 跨平台通过 HOST_BUILDERPULSE_DIR 覆盖
+      # 用法 (PowerShell): $env:HOST_BUILDERPULSE_DIR = "C:/Users/12739/.builderpulse"
+      # 用法 (bash): export HOST_BUILDERPULSE_DIR="$HOME/.builderpulse"
+      - ${HOST_BUILDERPULSE_DIR:-${HOME}/.builderpulse}:/root/.builderpulse:ro
 
     # 资源限制 (中等配置, 2 CPU + 4G RAM)
     deploy:
@@ -34,5 +35,5 @@ services:
       retries: 3
       start_period: 10s
 
-    # 默认命令: CLI mode (one-shot 转写)
-    command: ["python", "-m", "builderpulse", "run"]
+    # 默认命令: MCP server (stdio, 长跑)
+    command: ["python", "-m", "builderpulse", "serve"]

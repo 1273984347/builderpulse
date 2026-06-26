@@ -5,6 +5,84 @@ All notable changes to BuilderPulse will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-26 (S2: LightRAG Roles + Source Registry)
+
+### Added (Session 31 M1: LightRAG Role Abstraction)
+
+- **`builderpulse.remix.roles`**: New module (146 行) derived from
+  [LightRAG llm_roles.py](https://github.com/HKUDS/LightRAG) — provides
+  `Role` enum (EXTRACT/QUERY/KEYWORDS/TRANSLATE), `RoleSpec` dataclass,
+  `RoleLLMRegistry`, `DEFAULT_ROLE_SPECS` (4 角色默认配置), and
+  `get_role_provider(role, registry)`.
+- **`Config.role_llm_model_map`** + **`Config.role_llm_registry`** property:
+  Role-specific LLM routing. Per-role model override via
+  `Config(role_llm_model_map={"extract": "claude-opus-4-7",
+  "translate": "ollama/llama3"})`.
+- **CLI `--role-model` flag**: `bp process <url> --role-model
+  extract=claude-opus-4-7,translate=ollama/llama3` (per-role CLI override).
+- **MCP `_handle_process`**: Now reads `role_llm_model_map` from
+  `ConfigManager` and applies to Pipeline.
+
+### Added (Session 31 M2: Source Aggregator Refactor)
+
+- **`_FETCHERS` registry**: `core/source_aggregator.py` refactored from
+  5 hardcoded `if _want(...)` blocks to a `_FETCHERS` dict loop
+  (mirrors `deliver/_CHANNELS` pattern). New sources can be added via
+  `register_source(name, fetcher)` without touching `fetch_all_sources`.
+- **`register_source()` + `list_sources()`**: Public API for plugin
+  authors to extend source registry (with caveats — see v2.2.0 S2 notes).
+- **MCP `_handle_digest`**: Now uses `fetch_all_sources()` consistently.
+
+### Added (v2.2.0 Commit 1: RolePromptRegistry)
+
+- **`builderpulse.remix.prompt_registry`**: New module for role × variant
+  prompt template lookup. `step_summarize` now loads prompt template
+  keyed by `ctx.source.source_type` (e.g. `summarize-podcast.md`),
+  with custom override + builtin fallback + `<role>-default.md` chain.
+- Previously: 6 prompt templates existed in `prompts/*.md` but were
+  **never called** by `step_summarize` (system="" empty).
+  Now: templates wired through Pipeline with graceful degradation
+  (missing template → empty system preserves v2.1.0 behavior).
+
+### Changed
+
+- **`AnthropicProvider`**: `complete()` already accepted `system=""`;
+  `step_summarize` now actually passes populated system prompt.
+- **`Config` default**: `role_llm_model_map={}` defaults; existing
+  configs continue to work (`Config()` without role map → role registry
+  returns DEFAULT_ROLE_SPECS with `model="auto"`).
+- **Version bump**: `pyproject.toml` + `__version__` + `docker-compose.yml`
+  aligned to **2.2.0** (R1b B-9 fix).
+
+### Fixed
+
+- **P0-A (R1a)**: `docker-compose.yml` line 15 hardcoded Windows path
+  → env var `${HOST_BUILDERPULSE_DIR:-${HOME}/.builderpulse}` for
+  cross-platform deploy (Linux/macOS/Windows).
+- **P0-B (R1a)**: `RoleLLMRegistry.register_all` polluted global
+  `DEFAULT_ROLE_SPECS` via alias mutation. Fixed by `copy.deepcopy`
+  in `__init__`. REPL verified: `register_all({"extract": "X"})` no
+  longer mutates module state.
+- **R1b B-2/B-3/B-4**: 3 同根因 deepcopy 疏漏 — `register()` /
+  `__init__(specs=...)` / `get_spec` fallback 全部加 `copy.deepcopy`。
+  REPL 实证 8 mutation patterns 全 pass。
+- **R1b A-1 (P3)**: `register_source` 错误信息从 "already registered"
+  (误导) 改为 "conflicts with built-in source name"。加 warning log
+  提醒 plugin author 需手动同步 `_VALID_SOURCES` (P3, 治本推迟到
+  v2.3.0 plugin entry_points 重构)。
+
+### Notes (Residual Risks, per H44 R3 self-disclosure)
+
+- **P0-C (test coverage gap)**: Session 31 added 22 new Public API
+  elements (11 in `roles.py` + 11 in `source_aggregator.py`) with
+  **0 direct unit tests** — only indirect coverage via CLI/MCP/pipeline
+  integration tests. **Decision**: S31 owner (this commit) deferred to
+  backlog; pytest suite still 609+4 skip pass.
+- **9 P1 + 9 P2 items** flagged by R1a V1/V2/V3: see
+  `.builderpulse/dev/reviews/s31-lightrag-roles/` for full audit
+  (docker aliyun mirror, README stale test count, anthropic SDK upper
+  bound, CLI invalid-role warning, etc). Backlog for v2.2.x / v2.3.0.
+
 ## [2.2.0] - 2026-06-17 (S1: i18n + Docker)
 
 ### Added

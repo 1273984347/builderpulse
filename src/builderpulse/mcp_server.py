@@ -356,6 +356,11 @@ def _handle_process(
     if not is_safe_url(url):
         return {"error": f"URL not allowed: {url}"}
 
+    # Session 33: 修 mcp_server Pipeline 不传 config 跟 cli.py:306 同根因
+    # 角色 LLM 抽象 (S31 M1) 需 Config 才能走 get_role_provider (EXTRACT/TRANSLATE)
+    # E82 (S21 active: 控制器不实测) 同类 — 5 调用点 4 个已修, 这是最后 1 个
+    from builderpulse.core.config import Config
+    from builderpulse.core.config_manager import ConfigManager
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import (
         Pipeline,
@@ -365,8 +370,17 @@ def _handle_process(
         step_deliver,
     )
 
+    # 优先从 ConfigManager 拿 role_llm_model_map (跟 MCP 调用方统一配置)
+    # fallback 到 default Config 让 role_llm_registry 走 DEFAULT_ROLE_SPECS
+    try:
+        cfg = ConfigManager.get()
+    except Exception:
+        cfg = Config()
+    cfg_role_map = getattr(cfg, "role_llm_model_map", None) or {}
+    role_cfg = Config(role_llm_model_map=cfg_role_map) if cfg_role_map else Config()
+
     source = SourceRef.from_url(url)
-    p = Pipeline()
+    p = Pipeline(config=role_cfg)
 
     steps = [s.strip() for s in pipeline.split(",")]
     if "download" in steps or "transcribe" in steps:

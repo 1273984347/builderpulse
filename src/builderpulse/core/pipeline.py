@@ -115,7 +115,15 @@ def step_transcribe(ctx: PipelineContext) -> PipelineContext:
 
 
 def step_summarize(ctx: PipelineContext) -> PipelineContext:
-    """Summarize content using LLM with retry and fallback."""
+    """Summarize content using LLM with retry and fallback.
+
+    Session 31: 走 Role.EXTRACT 角色 (深度摘要, 30B+ 强推理推荐).
+    回退到单 LLM (ctx.config.model) 若无 registry.
+
+    v2.2.0 Commit 1: load prompt template via RolePromptRegistry
+    keyed by source.source_type (e.g. "podcast", "bilibili", "blogs").
+    Falls back to empty system if no template found (preserves v2.1.0 behavior).
+    """
     if not ctx.transcript and not ctx.error:
         ctx.error = "No transcript to summarize"
         return ctx
@@ -124,16 +132,49 @@ def step_summarize(ctx: PipelineContext) -> PipelineContext:
     fallback = text[:500]
 
     try:
+        from builderpulse.remix.roles import Role, get_role_provider
         from builderpulse.remix.summarizer import Summarizer, get_provider
+        from builderpulse.remix.prompt_registry import RolePromptRegistry
 
-        provider = get_provider(
-            model=ctx.config.model if ctx.config else "auto",
-            api_key=ctx.config.api_key if ctx.config else None,
+        # Resolve LLM provider (role-aware if registry available)
+        if hasattr(ctx.config, "role_llm_registry") and ctx.config.role_llm_registry:
+            provider = get_role_provider(Role.EXTRACT, ctx.config.role_llm_registry)
+        else:
+            provider = get_provider(
+                model=ctx.config.model if ctx.config else "auto",
+                api_key=ctx.config.api_key if ctx.config else None,
+            )
+
+        # Resolve system prompt template (v2.2.0 Commit 1, R1a P1-C1 fix)
+        # 优先级: BUILDERPULSE_PROMPTS_DIR env > config.json prompts_dir > builtin
+        # 保留 getattr 兜底 (R1b A3 regression fix): Mock(spec=[]) / partial Config
+        # 是合法 use case (plugin author, 单测), 不应让真实根因被 SUMMARIZE_FAILED 掩盖
+        system = ""
+        prompts_dir = (
+            getattr(ctx.config, "prompts_dir", None) if ctx.config else None
         )
+        custom_prompts = (
+            Path(prompts_dir).expanduser()
+            if isinstance(prompts_dir, str) and prompts_dir
+            else None
+        )
+        registry = RolePromptRegistry(custom_dir=custom_prompts)
+        try:
+            system = registry.get(
+                "summarize", variant=ctx.source.source_type or "default"
+            )
+        except FileNotFoundError:
+            # Graceful degradation: empty system preserves v2.1.0 behavior
+            logger.debug(
+                "step_summarize: no template for summarize/%s, using empty system",
+                ctx.source.source_type,
+            )
+
         summarizer = Summarizer(provider)
         ctx.summary = retry(
             summarizer.summarize,
             text,
+            system=system,
             max_retries=3,
             backoff_base=2.0,
         )
@@ -146,18 +187,26 @@ def step_summarize(ctx: PipelineContext) -> PipelineContext:
 
 
 def step_translate(ctx: PipelineContext) -> PipelineContext:
-    """Translate content using LLM with retry and fallback."""
+    """Translate content using LLM with retry and fallback.
+
+    Session 31: 走 Role.TRANSLATE 角色 (轻量翻译, 8B 即可, 跟 EXTRACT 并行).
+    回退到单 LLM (ctx.config.model) 若无 registry.
+    """
     original = ctx.summary or (ctx.transcript.text if ctx.transcript else "")
     target_lang = ctx.config.language if ctx.config else "zh"
 
     try:
+        from builderpulse.remix.roles import Role, get_role_provider
         from builderpulse.remix.summarizer import get_provider
         from builderpulse.remix.translator import Translator
 
-        provider = get_provider(
-            model=ctx.config.model if ctx.config else "auto",
-            api_key=ctx.config.api_key if ctx.config else None,
-        )
+        if hasattr(ctx.config, "role_llm_registry") and ctx.config.role_llm_registry:
+            provider = get_role_provider(Role.TRANSLATE, ctx.config.role_llm_registry)
+        else:
+            provider = get_provider(
+                model=ctx.config.model if ctx.config else "auto",
+                api_key=ctx.config.api_key if ctx.config else None,
+            )
         translator = Translator(provider)
         ctx.translation = retry(
             translator.translate,

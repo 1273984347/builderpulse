@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "builderpulse"
-version = "2.1.0"
+version = "2.2.0"
 description = "Track what AI builders are saying — transcripts, digests, and insights delivered to you."
 readme = "README.md"
 license = {text = "MIT"}

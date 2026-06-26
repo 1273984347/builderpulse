@@ -29,3 +29,9 @@ htmlcov/
 .cursor/
 mcp-config.json
 docs/superpowers/
+
+# H17 v3 + H32 protocol: .bak files centralized under backups/, never in source
+# (see H17 v3 / H32 in CLAUDE.md §6.1 + backups/INDEX.md for audit)
+*.bak
+*.bak-*
+backups/

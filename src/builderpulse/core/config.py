@@ -21,7 +21,7 @@ _DEFAULT_WORKSPACE = Path.home() / ".builderpulse" / "output"
 # `__version__` uses simple string comparison because BuilderPulse versions
 # follow strict X.Y.Z format where lexicographic order == semantic order
 # (e.g., "2.10.0" >= "2.1.0"). See spec §3.6.
-TARGET_CONFIG_VERSION = "2.1.0"
+TARGET_CONFIG_VERSION = "2.2.0"
 
 # v2.0.0 sources: enabled by default on v2.0.0 → v2.1.0 migration
 _DEFAULT_ENABLED_SOURCES = [
@@ -77,6 +77,32 @@ class Config:
     model: str = "base"
     device: str = "auto"
     workspace: str = str(_DEFAULT_WORKSPACE)
+
+    # v2.2.0 Commit 1 (R1a P1-C1 fix): Custom prompt template directory.
+    # 4-tier priority in step_summarize / RolePromptRegistry:
+    #   1. BUILDERPULSE_PROMPTS_DIR env var (highest)
+    #   2. config.json prompts_dir field
+    #   3. builtin _BUILTIN_DIR/prompts/
+    #   4. <role>-default.md fallback (or empty system)
+    # None = use builtin only (default).
+    prompts_dir: Optional[str] = None
+
+    # Session 31: Role-specific LLM (M1 from LightRAG 5 大范式).
+    # model_map: {"extract": "claude-sonnet-4-6", "translate": "ollama/llama3", ...}
+    # 不指定时各角色走 DEFAULT_ROLE_SPECS (model="auto" → get_provider 默认)
+    role_llm_model_map: dict = field(default_factory=dict)
+
+    @property
+    def role_llm_registry(self) -> "RoleLLMRegistry":
+        """懒构造 RoleLLMRegistry from role_llm_model_map — 跟 lightrag ROLES 同源.
+
+        pipeline 通过 ctx.config.role_llm_registry 拿 registry, 自动从 model_map 构造.
+        """
+        from builderpulse.remix.roles import RoleLLMRegistry
+        reg = RoleLLMRegistry()
+        if self.role_llm_model_map:
+            reg.register_all(self.role_llm_model_map)
+        return reg
 
     # v2.1.0 additions (per spec §3.6). The Python field ``version`` maps to
     # the JSON key ``__version__`` (see from_file/to_dict); the leading-underscore
@@ -148,17 +174,32 @@ class Config:
 
     # ── Serialisation ──────────────────────────────────────────────────
 
-    def to_dict(self, mask_secrets: bool = True) -> dict:
+    def to_dict(self, mask_secrets: bool = True, include_env_overrides: bool = False) -> dict:
         """Return config as a plain dict.
 
         When *mask_secrets* is True (default), values whose field name
         matches SENSITIVE_KEYS are replaced with "****".
 
+        When *include_env_overrides* is False (default), fields that were
+        overridden via env vars (BUILDERPULSE_*) are EXCLUDED to prevent
+        temporary env-only values from being persisted to disk and
+        permanently overwriting the user's original config.json values.
+        Set to True for explicit debug dumps.
+
         The ``version`` field is written out as ``__version__`` to match
         the on-disk JSON convention (spec §3.6).
         """
+        env_overridden = getattr(self, "_env_overridden", set())
         result = {}
         for fld in fields(self):
+            # R1b A4 fix: skip env-overridden fields by default to avoid
+            # polluting on-disk config with temporary env-only values
+            if (
+                not include_env_overrides
+                and fld.name in env_overridden
+                and fld.name != "version"
+            ):
+                continue
             value = getattr(self, fld.name)
             if mask_secrets and self._is_sensitive(fld.name) and value:
                 value = "****"
@@ -171,7 +212,15 @@ class Config:
     # ── Internals ──────────────────────────────────────────────────────
 
     def _apply_env_overrides(self) -> None:
-        """Override fields with BUILDERPULSE_* env vars if present."""
+        """Override fields with BUILDERPULSE_* env vars if present.
+
+        R1b A4 fix: tracks which fields were overridden in ``_env_overridden``
+        set, so ``to_dict()`` can exclude them and prevent temporary env-only
+        values from being persisted to disk.
+        """
+        # Initialize env-overridden tracking set (R1b A4 fix)
+        if not hasattr(self, "_env_overridden"):
+            self._env_overridden = set()
         for fld in fields(self):
             env_name = _ENV_PREFIX + fld.name.upper()
             env_val = os.environ.get(env_name)
@@ -196,6 +245,8 @@ class Config:
                     setattr(self, fld.name, int(env_val))
                 else:
                     setattr(self, fld.name, env_val)
+                # R1b A4: track env-overridden field for to_dict() filtering
+                self._env_overridden.add(fld.name)
 
     @staticmethod
     def _is_sensitive(field_name: str) -> bool:

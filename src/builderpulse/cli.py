@@ -283,7 +283,17 @@ def fetch(source, limit, days, user):
 @click.argument("url")
 @click.option("--summarize", is_flag=True, help="Add LLM summary")
 @click.option("--deliver", default=None, help="Delivery channels")
-def process(url, summarize, deliver):
+# Session 32 M1 完善: --role-model 选项, 逗号分隔 key=value (跟 lightrag llm_roles.py ROLES 同表面)
+# 例: --role-model extract=claude-opus-4-7,translate=ollama/llama3
+# 4 角色: extract / query / keywords / translate (跟 Role enum 同)
+@click.option(
+    "--role-model",
+    default=None,
+    help="Role-specific LLM models, comma-separated key=value "
+    "(e.g. extract=claude-opus-4-7,translate=ollama/llama3). "
+    "Roles: extract / query / keywords / translate.",
+)
+def process(url, summarize, deliver, role_model):
     """End-to-end pipeline: download → transcribe → summarize → deliver."""
     from builderpulse.infra.security import is_safe_url
 
@@ -291,6 +301,7 @@ def process(url, summarize, deliver):
         click.echo(f"Error: URL not allowed: {url}", err=True)
         sys.exit(1)
 
+    from builderpulse.core.config import Config
     from builderpulse.core.models import SourceRef
     from builderpulse.core.pipeline import (
         Pipeline,
@@ -300,10 +311,31 @@ def process(url, summarize, deliver):
         step_deliver,
     )
 
+    # Session 32: 解析 --role-model 到 Config.role_llm_model_map
+    role_llm_model_map: dict = {}
+    if role_model:
+        for pair in role_model.split(","):
+            pair = pair.strip()
+            if "=" not in pair:
+                click.echo(
+                    f"Warning: invalid --role-model pair (no '='): {pair}",
+                    err=True,
+                )
+                continue
+            key, value = pair.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key or not value:
+                continue
+            role_llm_model_map[key] = value
+        click.echo(f"Role-LLM models: {role_llm_model_map}")
+
     source = SourceRef.from_url(url)
     click.echo(f"Processing: {source.url}")
 
-    p = Pipeline()
+    # Session 32: 传 Config 给 Pipeline, 让 step_summarize / step_translate 走 role-LLM
+    cfg = Config(role_llm_model_map=role_llm_model_map) if role_llm_model_map else Config()
+    p = Pipeline(config=cfg)
     p.add(step_download)
     p.add(step_transcribe)
     if summarize:

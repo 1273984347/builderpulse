@@ -215,6 +215,67 @@ class TestBpProcess:
         assert "error" in result
         assert result["error"] == "Transcription failed"
 
+    def test_pipeline_receives_config(self, monkeypatch):
+        """Session 33: Pipeline 必收 config (让 step_summarize 走 role-LLM).
+
+        跟 cli.py:306 同根因 (E82 同类) — Pipeline() 不传 Config 时 step_summarize
+        走 fallback get_provider("auto"), 角色 LLM 抽象失效.
+        """
+        mock_transcript = MagicMock()
+        mock_transcript.word_count = 100
+        mock_ctx = MagicMock()
+        mock_ctx.error = None
+        mock_ctx.transcript = mock_transcript
+        mock_ctx.summary = "ok"
+        mock_ctx.delivery_results = {}
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = mock_ctx
+
+        # 让 ConfigManager.get 抛错 → 走 Config() default fallback
+        with patch("builderpulse.core.pipeline.Pipeline", return_value=mock_pipeline) as pipeline_class:
+            with patch("builderpulse.core.config_manager.ConfigManager.get", side_effect=Exception("no config")):
+                handle_tool_call(
+                    "bp_process", {"url": "https://www.youtube.com/watch?v=abc"}
+                )
+
+        # Pipeline 必被传 config 参数 (e.g. config=Config())
+        # 验证 pipeline_class 至少被调用一次
+        assert pipeline_class.called
+        call_kwargs = pipeline_class.call_args.kwargs
+        assert "config" in call_kwargs, f"Pipeline must receive config kwarg, got: {call_kwargs}"
+        assert call_kwargs["config"] is not None
+
+    def test_pipeline_receives_role_llm_from_config_manager(self):
+        """ConfigManager 有 role_llm_model_map 时, Pipeline 必收带 role map 的 Config."""
+        from builderpulse.core.config import Config
+
+        mock_transcript = MagicMock()
+        mock_transcript.word_count = 100
+        mock_ctx = MagicMock()
+        mock_ctx.error = None
+        mock_ctx.transcript = mock_transcript
+        mock_ctx.summary = "ok"
+        mock_ctx.delivery_results = {}
+
+        mock_pipeline = MagicMock()
+        mock_pipeline.run.return_value = mock_ctx
+
+        # ConfigManager 返带 role_llm_model_map 的 Config
+        mock_cfg = Config(role_llm_model_map={"extract": "claude-opus-4-7"})
+
+        with patch("builderpulse.core.pipeline.Pipeline", return_value=mock_pipeline) as pipeline_class:
+            with patch("builderpulse.core.config_manager.ConfigManager.get", return_value=mock_cfg):
+                handle_tool_call(
+                    "bp_process", {"url": "https://www.youtube.com/watch?v=abc"}
+                )
+
+        call_kwargs = pipeline_class.call_args.kwargs
+        assert "config" in call_kwargs
+        cfg_passed = call_kwargs["config"]
+        # cfg_passed 应该是新的 Config 带 role_llm_model_map (从 mock_cfg 复制)
+        assert cfg_passed.role_llm_model_map == {"extract": "claude-opus-4-7"}
+
 
 # ── bp_fetch_feed ───────────────────────────────────────────────────────
 

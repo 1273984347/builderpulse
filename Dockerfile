@@ -1,6 +1,9 @@
 # === Stage 1: builder (含编译依赖) ===
 FROM python:3.12-slim AS builder
 
+# 切到 aliyun mirror 避免 deb.debian.org:80 限流
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
+
 WORKDIR /build
 
 # 系统依赖 (编译 + audio 处理)
@@ -15,6 +18,9 @@ RUN pip install --no-cache-dir --target=/install .
 
 # === Stage 2: runtime (slim, 60%+ 体积小) ===
 FROM python:3.12-slim AS runtime
+
+# 切到 aliyun mirror 避免 deb.debian.org:80 限流
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
 
 # 运行时最小系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
