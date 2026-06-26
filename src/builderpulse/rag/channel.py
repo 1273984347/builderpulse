@@ -31,6 +31,12 @@ class RAGChannel:
         self.client = QdrantClient(host=host, port=port)
         self.vector_size = vector_size
         self._ensure_collection()
+        # 缓存层 (集成到 RAG channel)
+        try:
+            from builderpulse.infra.cache import Cache
+            self._cache = Cache()
+        except Exception:
+            self._cache = None
 
     def _ensure_collection(self):
         """确保 collection 存在。"""
@@ -46,18 +52,18 @@ class RAGChannel:
             )
 
     def _embed(self, text: str) -> list[float]:
-        """简单 hash-based embedding。
-
-        TODO: 生产环境替换为 sentence-transformers (all-MiniLM-L6-v2, 384 维)。
-        当前实现是 SHA256 伪随机向量, 语义无意义, 仅用于 MVP/demo。
-        """
-        h = hashlib.sha256(text.encode()).hexdigest()
-        # 生成 vector_size 维向量
-        vec = []
-        for i in range(self.vector_size):
-            idx = i % len(h)
-            vec.append(float(int(h[idx], 16)) / 15.0)
-        return vec
+        """用 sentence-transformers 生成语义向量。"""
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer('all-MiniLM-L6-v2')
+            vec = model.encode(text).tolist()
+            return vec
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("sentence-transformers failed: %s, using fallback", e)
+            # fallback: SHA256 hash (语义无意义, 仅用于 demo)
+            h = hashlib.sha256(text.encode()).hexdigest()
+            return [float(int(h[i % len(h)], 16)) / 15.0 for i in range(self.vector_size)]
 
     def add_documents(self, documents: list[dict]) -> int:
         """添加文档到 Qdrant。"""
@@ -80,7 +86,14 @@ class RAGChannel:
         return len(points)
 
     def search(self, query: str, top_k: int = 10) -> list[dict]:
-        """搜索相似文档。"""
+        """搜索相似文档 (带缓存)。"""
+        # 检查缓存
+        cache_key = f"search:{query}:{top_k}"
+        if self._cache:
+            cached = self._cache.get(cache_key)
+            if cached:
+                return cached
+
         vector = self._embed(query)
         results = self.client.search(
             collection_name=self.collection,
@@ -88,7 +101,7 @@ class RAGChannel:
             limit=top_k,
         )
 
-        return [
+        result = [
             {
                 "id": r.id,
                 "score": r.score,
@@ -97,6 +110,12 @@ class RAGChannel:
             }
             for r in results
         ]
+
+        # 写入缓存
+        if self._cache:
+            self._cache.set(cache_key, result, ttl=300)  # 5 分钟缓存
+
+        return result
 
     def summarize(self, results: list[dict], max_items: int = 5) -> str:
         """生成摘要 (简单拼接, 生产环境用 LLM)。"""
