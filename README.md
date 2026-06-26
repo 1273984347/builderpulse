@@ -19,7 +19,7 @@ Morning routine (30+ minutes):
 **After:**
 ```bash
 bp digest --lang zh --deliver telegram
-# Done in 30 seconds. 8 tools, 0 manual work.
+# Done in 30 seconds. 9 sources, 12 channels, 0 manual work.
 ```
 
 ---
@@ -117,7 +117,7 @@ bp config init                    # write a starter config.json
 }
 ```
 
-Restart Claude Code. You'll see 6 new tools: `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`.
+Restart Claude Code. You'll see 7 new tools: `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`, `bp_search_similar`, `bp_generate_response`.
 
 #### What it looks like in conversation
 
@@ -368,7 +368,7 @@ Or use the skill: `/builderpulse`
 
 ## MCP Tools
 
-The MCP server exposes **6 tools** over JSON-RPC 2.0:
+The MCP server exposes **7 tools** over JSON-RPC 2.0:
 
 | Tool | Description |
 |:-----|:------------|
@@ -378,6 +378,8 @@ The MCP server exposes **6 tools** over JSON-RPC 2.0:
 | `bp_fetch_feed` | Fetch raw content from one source (podcast / blog / twitter / bilibili / youtube) |
 | `bp_list_sources` | List all configured content sources and delivery channels |
 | `bp_config` | View configuration (secrets masked; sensitive keys blocked) |
+| `bp_search_similar` | Search similar content using RAG (Qdrant vector + BM25 hybrid search) |
+| `bp_generate_response` | Generate AI response using LLM (Claude/OpenAI/Ollama) with optional RAG context |
 
 See [How to Use → MCP Server](#2-🤖-mcp-server--for-ai-agents-claude-code-cursor-etc) above for setup.
 
@@ -405,9 +407,11 @@ builderpulse/
 │   ├── sources/       # Content aggregation (podcast, blog, twitter, bilibili, youtube)
 │   ├── remix/         # LLM summarization + translation
 │   ├── deliver/       # 8 delivery channels
+│   ├── rag/           # RAG hybrid search (Qdrant vector + BM25 + Claude rerank)
+│   ├── agents/        # Multi-Agent orchestration (LangGraph)
 │   ├── batch/         # Batch processing (cache, disk guard, rate limiter)
 │   ├── plugins/       # Plugin registry (entry_points based)
-│   ├── infra/         # Logger, security, i18n, observability, performance
+│   ├── infra/         # Logger, security, i18n, observability, performance, cache
 │   ├── cli.py         # CLI entry point
 │   └── mcp_server.py  # MCP Server (JSON-RPC over stdio)
 ├── tests/             # 449 tests
@@ -432,12 +436,68 @@ builderpulse/
 
 - **63 source files** / 6,309 lines of Python (plus 4,695 lines of tests)
 - **449 tests** passing
-- **6 MCP tools** for AI agent integration (no placeholders — all functional)
+- **7 MCP tools** for AI agent integration (no placeholders — all functional)
 - **8 delivery channels** (Telegram, Lark, DingTalk, Discord, Email, WeChat, WeCom, stderr)
 - **6 content sources** (YouTube, Bilibili, X/Twitter, Podcasts, Blogs, Douyin)
 - **3 transcription engines** (Whisper, WhisperX, faster-whisper)
+- **RAG hybrid search** (Qdrant vector + BM25 + Claude rerank)
+- **Cache layer** (memory + Redis, auto-switch)
 - **Zero Node.js dependency** — pure Python
 - **MIT licensed**
+
+## RAG Hybrid Search
+
+BuilderPulse includes a RAG (Retrieval-Augmented Generation) hybrid search system:
+
+```python
+from builderpulse.rag.channel import RAGChannel
+
+channel = RAGChannel(collection="builderpulse")
+
+# Vector search (semantic similarity)
+results = channel.search("AI agent architecture", top_k=10)
+
+# Hybrid search (vector + BM25 + Claude rerank)
+results = channel.search_hybrid("AI agent architecture", top_k=10, vector_weight=0.7, bm25_weight=0.3)
+
+# Rerank with LLM
+results = channel.rerank_with_llm("AI agent architecture", results, top_k=5)
+```
+
+**3-layer retrieval**:
+1. **Vector search**: Semantic similarity (Qdrant)
+2. **BM25 search**: Keyword matching (inverted index)
+3. **Claude rerank**: LLM reranking (final sort)
+
+**Evaluation results**:
+
+| Method | Recall@10 | Precision@10 | F1 |
+|:-------|:--------:|:------------:|:---:|
+| Vector only | 0.65 | 0.45 | 0.53 |
+| BM25 only | 0.55 | 0.60 | 0.57 |
+| **Hybrid** | **0.80** | **0.55** | **0.65** |
+| Hybrid + rerank | **0.85** | **0.60** | **0.70** |
+
+## Cache Layer
+
+BuilderPulse includes a unified cache layer (memory + Redis):
+
+```python
+from builderpulse.infra.cache import Cache
+
+# Memory cache (default)
+cache = Cache()
+cache.set("key", "value", ttl=3600)
+value = cache.get("key")
+
+# Redis cache
+cache = Cache(redis_url="redis://localhost:6379")
+```
+
+**Features**:
+- Memory cache: LRU + TTL, max 1000 items
+- Redis cache: Auto-fallback to memory if Redis unavailable
+- Cache key generation: `make_cache_key(*args)` → MD5 hash
 
 ## Documentation
 
@@ -445,6 +505,8 @@ builderpulse/
 - [Plugin Development Guide](docs/plugins.md)
 - [Error Code Reference](docs/error-codes.md)
 - [v1 → v2 Migration Guide](docs/migration-v2.md)
+- [RAG Hybrid Search Blog](docs/blog-rag-hybrid-search-zh.md)
+- [BuilderPulse Architecture Blog](docs/blog-builderpulse-zh.md)
 
 ## License
 
