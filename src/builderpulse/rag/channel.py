@@ -46,7 +46,11 @@ class RAGChannel:
             )
 
     def _embed(self, text: str) -> list[float]:
-        """简单 hash-based embedding (生产环境用 sentence-transformers)。"""
+        """简单 hash-based embedding。
+
+        TODO: 生产环境替换为 sentence-transformers (all-MiniLM-L6-v2, 384 维)。
+        当前实现是 SHA256 伪随机向量, 语义无意义, 仅用于 MVP/demo。
+        """
         h = hashlib.sha256(text.encode()).hexdigest()
         # 生成 vector_size 维向量
         vec = []
@@ -61,7 +65,7 @@ class RAGChannel:
         for doc in documents:
             text = doc.get("text", "")
             metadata = doc.get("metadata", {})
-            doc_id = doc.get("id", hashlib.md5(text.encode()).hexdigest())
+            doc_id = doc.get("id", hashlib.sha256(text.encode()).hexdigest()[:16])
 
             vector = self._embed(text)
             points.append(
@@ -156,14 +160,19 @@ class RAGChannel:
         return results[:top_k]
 
     def _bm25_search(self, query: str, top_k: int = 20) -> list[dict]:
-        """简单 BM25 搜索 (基于关键词匹配)。"""
+        """简单 BM25 搜索 (基于关键词匹配)。限制: 最多搜索 1000 篇文档。"""
         # 获取所有文档 (生产环境用倒排索引)
         try:
             all_points = self.client.scroll(
                 collection_name=self.collection,
                 limit=1000,
             )[0]
-        except Exception:
+            if len(all_points) >= 1000:
+                import logging
+                logging.getLogger(__name__).warning("BM25 search capped at 1000 documents")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("BM25 search failed: %s", e)
             return []
 
         # 计算 BM25 分数
@@ -191,8 +200,8 @@ class RAGChannel:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
-    def rerank_with_llm(self, query: str, results: list[dict], top_k: int = 5) -> list[dict]:
-        """用 LLM 重排结果 (简化版: 基于关键词匹配)。"""
+    def rerank_by_keywords(self, query: str, results: list[dict], top_k: int = 5) -> list[dict]:
+        """用关键词重排结果 (简化版, 生产环境用 LLM 重排)。"""
         if not results:
             return []
 

@@ -59,7 +59,10 @@ def run_mcp_server() -> None:
             except json.JSONDecodeError:
                 return None
 
-        length = int(header_line.split(":")[1].strip())
+        try:
+            length = int(header_line.split(":")[1].strip())
+        except (ValueError, IndexError):
+            return None
         # P1 fix: validate Content-Length bounds
         if length < 0 or length > 10 * 1024 * 1024:  # 10MB cap
             return None
@@ -335,7 +338,7 @@ def handle_tool_call(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any
         return {"error": f"Invalid arguments: {e}"}
     except Exception as e:
         logger.error("Tool %s failed: %s", tool_name, e)
-        return {"error": str(e)}
+        return {"error": "Internal tool error. Check server logs for details."}
 
 
 def _handle_transcribe(

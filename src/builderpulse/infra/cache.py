@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 
 class MemoryCache:
-    """内存缓存 (LRU + TTL)。"""
+    """内存缓存 (TTL eviction)。"""
 
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
@@ -50,29 +50,39 @@ class MemoryCache:
 
 
 class RedisCache:
-    """Redis 缓存。"""
+    """Redis 缓存 (带 key prefix)。"""
+
+    PREFIX = "bp:"
 
     def __init__(self, redis_url: str = "redis://localhost:6379"):
         import redis
         self._client = redis.from_url(redis_url)
 
+    def _prefixed(self, key: str) -> str:
+        return f"{self.PREFIX}{key}"
+
     def get(self, key: str) -> Optional[Any]:
-        value = self._client.get(key)
+        value = self._client.get(self._prefixed(key))
         if value:
             return json.loads(value)
         return None
 
     def set(self, key: str, value: Any, ttl: int = 3600) -> None:
-        self._client.setex(key, ttl, json.dumps(value))
+        self._client.setex(self._prefixed(key), ttl, json.dumps(value))
 
     def delete(self, key: str) -> None:
-        self._client.delete(key)
+        self._client.delete(self._prefixed(key))
 
     def clear(self) -> None:
-        self._client.flushdb()
+        """只删除 BuilderPulse 的 key (带 prefix), 不影响其他应用。"""
+        for key in self._client.scan_iter(f"{self.PREFIX}*"):
+            self._client.delete(key)
 
     def size(self) -> int:
-        return self._client.dbsize()
+        count = 0
+        for _ in self._client.scan_iter(f"{self.PREFIX}*"):
+            count += 1
+        return count
 
 
 class Cache:

@@ -117,7 +117,7 @@ bp config init                    # write a starter config.json
 }
 ```
 
-Restart Claude Code. You'll see 7 new tools: `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`, `bp_search_similar`, `bp_generate_response`.
+Restart Claude Code. You'll see 8 new tools: `bp_transcribe`, `bp_digest`, `bp_process`, `bp_fetch_feed`, `bp_list_sources`, `bp_config`, `bp_search_similar`, `bp_generate_response`.
 
 #### What it looks like in conversation
 
@@ -436,7 +436,7 @@ builderpulse/
 
 - **63 source files** / 6,309 lines of Python (plus 4,695 lines of tests)
 - **449 tests** passing
-- **7 MCP tools** for AI agent integration (no placeholders — all functional)
+- **8 MCP tools** for AI agent integration (no placeholders — all functional)
 - **8 delivery channels** (Telegram, Lark, DingTalk, Discord, Email, WeChat, WeCom, stderr)
 - **6 content sources** (YouTube, Bilibili, X/Twitter, Podcasts, Blogs, Douyin)
 - **3 transcription engines** (Whisper, WhisperX, faster-whisper)

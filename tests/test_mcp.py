@@ -4,11 +4,13 @@ from builderpulse.mcp_server import handle_tool_call, TOOLS
 
 
 def test_tool_registry():
-    assert len(TOOLS) == 6
+    assert len(TOOLS) == 8
     names = [t["name"] for t in TOOLS]
     assert "bp_transcribe" in names
     assert "bp_digest" in names
     assert "bp_config" in names
+    assert "bp_search_similar" in names
+    assert "bp_generate_response" in names
 
 
 def test_list_sources():
