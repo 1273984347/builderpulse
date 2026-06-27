@@ -9,14 +9,27 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Allow running from /tmp without install
-sys.path.insert(0, str(Path(__file__).parent))
+# Allow running from either /tmp (standalone) or builderpulse/tests/ (installed).
+# Strategy: try the local /tmp path first (where the adapter is alongside),
+# then fall back to the builderpulse src layout.
+_THIS_DIR = Path(__file__).parent.resolve()
+for candidate in [
+    _THIS_DIR,                                    # /tmp (standalone mode)
+    _THIS_DIR.parent / "src",                      # builderpulse/src (installed mode)
+    _THIS_DIR.parent,                              # /tmp if tests/ nested
+]:
+    if (candidate / "universal_llm_adapter.py").exists() or (candidate / "builderpulse").exists():
+        sys.path.insert(0, str(candidate))
+        break
 
 from universal_llm_adapter import (  # noqa: E402
     ProviderInfo,
     ResponseWithThought,
     chat,
     detect_provider,
+    merge_provider_defaults,
+    truncate_messages,
+    get_max_prompt_size,
 )
 
 
@@ -186,6 +199,72 @@ def test_anthropic_adapter_routes_text_delta():
 def test_google_adapter_routes_text_chunk():
     """Mock google-genai SDK: verify GoogleAdapter yields ResponseWithThought."""
     pass
+
+
+# ---------- Cycle 8: provider defaults + truncate_messages ----------
+
+def test_provider_defaults_merge_caller_wins():
+    """merge_provider_defaults: caller kwargs override provider defaults."""
+    # Mistral default: safe_prompt=True
+    merged = merge_provider_defaults("mistral", {})
+    assert merged == {"safe_prompt": True}, f"unexpected: {merged}"
+    # Caller explicitly sets safe_prompt=False → wins
+    merged = merge_provider_defaults("mistral", {"safe_prompt": False})
+    assert merged["safe_prompt"] is False, "caller should win"
+    # Caller adds new key not in defaults → merged in
+    merged = merge_provider_defaults("deepseek", {"top_p": 0.95})
+    assert merged == {"temperature": 0.6, "top_p": 0.95}, f"unexpected: {merged}"
+    # Unknown provider → empty defaults
+    merged = merge_provider_defaults("nonexistent", {"x": 1})
+    assert merged == {"x": 1}
+
+
+def test_provider_defaults_all_known_providers():
+    """All 15 _ADAPTERS providers should have defaults registered (no KeyError)."""
+    from universal_llm_adapter import _ADAPTERS, _PROVIDER_DEFAULT_PARAMS
+    for provider in _ADAPTERS:
+        assert provider in _PROVIDER_DEFAULT_PARAMS, (
+            f"missing defaults for {provider}"
+        )
+
+
+def test_truncate_messages_preserves_last():
+    """truncate_messages should drop oldest first but always keep the last (current question)."""
+    msgs = [{"role": "user", "content": f"msg {i}"} for i in range(10)]
+    truncated = truncate_messages(msgs, max_prompt_size=10, encoder=None)
+    assert len(truncated) >= 1, "should always keep at least the last message"
+    assert truncated[-1] == msgs[-1], "last message must be preserved"
+
+
+def test_truncate_messages_drops_oldest():
+    """When total tokens exceed limit, drop oldest messages."""
+    # Build 100 large messages
+    msgs = [{"role": "user", "content": "X" * 1000} for _ in range(100)]
+    truncated = truncate_messages(msgs, max_prompt_size=50, encoder=None)
+    # With char heuristic (4 chars/token), 50 tokens ≈ 200 chars
+    # Should drop most messages
+    assert len(truncated) < len(msgs), f"expected to drop messages, got {len(truncated)}"
+
+
+def test_truncate_messages_tiktoken_mode():
+    """With tiktoken encoder, total tokens after truncation should be ≤ limit."""
+    try:
+        import tiktoken
+    except ImportError:
+        pytest.skip("tiktoken not installed")
+    enc = tiktoken.get_encoding("cl100k_base")
+    msgs = [{"role": "user", "content": "hello world " * 100} for _ in range(50)]  # ~1500 tokens each
+    truncated = truncate_messages(msgs, max_prompt_size=1000, encoder=enc)
+    total = sum(len(enc.encode(m["content"])) for m in truncated)
+    assert total <= 1100, f"truncated total {total} tokens > limit 1000 + tolerance"
+
+
+def test_get_max_prompt_size_known_and_fallback():
+    """get_max_prompt_size returns known limits + 10000 fallback for unknown."""
+    assert get_max_prompt_size("gpt-4o") == 60000
+    assert get_max_prompt_size("gemini-2.5-flash") == 120000
+    assert get_max_prompt_size("claude-opus-4-0") == 60000
+    assert get_max_prompt_size("totally-unknown-model") == 10000  # khoj default
 
 
 if __name__ == "__main__":

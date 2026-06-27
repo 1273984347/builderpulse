@@ -15,7 +15,7 @@ Why extract this:
 
 What this skeleton does NOT include (intentionally):
 - retry/timeout/backoff (khoj uses tenacity, add later)
-- cache_control / prompt caching (Anthropic-specific)
+- cache_control / ephemeral prompt caching (Anthropic-specific)
 - image / multimodal (separate concern)
 """
 
@@ -52,10 +52,6 @@ class StreamEventType(str, Enum):
 
 # ---------- Provider detection ----------
 
-# Khoj's khoj.utils.helpers has is_openai_api / is_local_api / is_cerebras_api etc.
-# The detection pattern: hostname string match OR model_name prefix match.
-# e.g. api_base_url.startswith("https://api.cerebras.ai/v1") → cerebras
-
 @dataclass
 class ProviderInfo:
     name: str  # canonical name: openai / anthropic / google / groq / ...
@@ -64,8 +60,6 @@ class ProviderInfo:
     model_name: str = ""
 
 
-# Hostname → provider mapping (khoj uses .startswith on full URL; we use
-# urlparse + endswith for subdomain support, e.g. my-resource.openai.azure.com)
 def _host_matches(host: str, *suffixes: str) -> bool:
     return any(host == s or host.endswith("." + s) for s in suffixes)
 
@@ -76,19 +70,16 @@ _HOST_PROVIDERS = (
     (("api.deepinfra.com",), "deepinfra"),
     (("api.deepseek.com",), "deepseek"),
     (("dashscope.aliyuncs.com",), "qwen"),
-    (("openai.azure.com",), "azure"),  # Azure OpenAI deployments
-    (("anthropic.com",), "anthropic"),  # api.anthropic.com direct
-    (("googleapis.com",), "google"),    # generativelanguage.googleapis.com
-    # Cycle 6 add: 4 more providers that share OpenAI-compat or have native SDKs
-    (("api.mistral.ai",), "mistral"),         # OpenAI-compat
-    (("api.cohere.ai",), "cohere"),           # has native SDK but we route to OpenAI-compat (Cohere also exposes compat endpoint)
-    (("api.together.xyz",), "together"),      # OpenAI-compat
-    (("api.fireworks.ai",), "fireworks"),     # OpenAI-compat
+    (("openai.azure.com",), "azure"),
+    (("anthropic.com",), "anthropic"),
+    (("googleapis.com",), "google"),
+    (("api.mistral.ai",), "mistral"),
+    (("api.cohere.ai",), "cohere"),
+    (("api.together.xyz",), "together"),
+    (("api.fireworks.ai",), "fireworks"),
     (("localhost", "127.0.0.1"), "local"),
 )
 
-# Model-name prefix → provider mapping (used when hostname is generic,
-# e.g. when proxying OpenAI-compatible APIs)
 _MODEL_PROVIDERS = (
     (("claude-", "claude_"), "anthropic"),
     (("gemini-", "gemma-", "palm-"), "google"),
@@ -105,11 +96,7 @@ def detect_provider(provider_info: ProviderInfo) -> Literal[
     "mistral", "cohere", "together", "fireworks",
     "local", "unknown"
 ]:
-    """Return canonical provider name. Khoj's khoj/utils/helpers.py has 8+ such checks.
-
-    Reference: khoj/utils/helpers.py is_openai_api() + is_local_api() + is_cerebras_api() + is_groq_api()
-    See khoj/processor/conversation/openai/utils.py:859-942 for the full pattern.
-    """
+    """Return canonical provider name. Khoj's khoj/utils/helpers.py has 8+ such checks."""
     host = urlparse(provider_info.base_url or "").hostname or ""
     for hosts, name in _HOST_PROVIDERS:
         if _host_matches(host, *hosts):
@@ -117,52 +104,60 @@ def detect_provider(provider_info: ProviderInfo) -> Literal[
     for prefixes, name in _MODEL_PROVIDERS:
         if provider_info.model_name.startswith(prefixes):
             return name  # type: ignore[return-value]
-    # base_url is None OR empty + no model match → default to official OpenAI (khoj pattern).
-    # Use `not` not `is None` so empty string also routes to openai (common API key omission).
     if not provider_info.base_url:
         return "openai"
     return "unknown"
+
+
+# ---------- Provider-specific default params (Cycle 8) ----------
+
+# Khoj's model_to_prompt_size (conversation/utils.py:61-97) hard-codes per-model limits.
+# We add per-PROVIDER defaults that merge into kwargs at chat() time.
+# This is a lighter pattern — per-call overrides still win.
+_PROVIDER_DEFAULT_PARAMS: dict[str, dict] = {
+    "mistral": {"safe_prompt": True},  # Mistral built-in safety layer
+    "together": {"safety_model": "default"},
+    "fireworks": {"context_length_exceeded_behavior": "error"},
+    "deepseek": {"temperature": 0.6},  # DeepSeek recommended default
+    "deepinfra": {"temperature": 0.7},
+    "cerebras": {"temperature": 0.7, "max_tokens": 8192},
+    "groq": {"temperature": 0.7},
+    "qwen": {"temperature": 0.7},
+    "grok": {"temperature": 0.7},
+    "openai": {},  # use caller's defaults
+    "anthropic": {},  # native SDK uses different kwargs
+    "google": {},  # native SDK uses different kwargs
+    "azure": {},  # uses openai's defaults
+    "local": {"temperature": 0.7},  # typical for self-hosted
+    "cohere": {},
+    "fireworks": {"context_length_exceeded_behavior": "error"},
+}
+
+
+def merge_provider_defaults(provider: str, kwargs: dict) -> dict:
+    """Merge provider defaults with caller's kwargs. Caller kwargs win (override)."""
+    defaults = _PROVIDER_DEFAULT_PARAMS.get(provider, {})
+    merged = {**defaults, **kwargs}  # caller wins
+    return merged
 
 
 # ---------- Universal interface ----------
 
 @runtime_checkable
 class LLMAdapter(Protocol):
-    """Any LLM provider must implement this. Khoj uses 3 implementations:
-
-    - openai/utils.py (handles Chat Completions + Responses API + most providers)
-    - anthropic/utils.py (Claude-specific: thinking blocks + prompt caching)
-    - google/utils.py (Gemini-specific: genai SDK)
-
-    Each one normalizes to ResponseWithThought — that's the whole point.
-    """
+    """Any LLM provider must implement this."""
 
     async def stream(
         self,
         messages: list[dict],
         model: str,
         **kwargs,
-    ) -> AsyncGenerator[ResponseWithThought, None]:
-        """Yield ResponseWithThought chunks. Implementations handle:
-
-        - Khoj pattern: tenacity @retry wraps the inner client call
-        - Local models: 300s read timeout; remote: 60s
-        - Reasoning models: route thought_delta to `thought` field
-        - Tool calls: yield as JSON in `text` (khoj pattern)
-        """
-        ...
+    ) -> AsyncGenerator[ResponseWithThought, None]: ...
 
 
 # ---------- Per-provider adapters ----------
 
 class OpenAICompatAdapter:
-    """The khoj universal pattern: OpenAI-compatible API surface covers ~10 providers.
-
-    All of these use the same httpx-based OpenAI client, just with different
-    base_url. Khoj's openai/utils.py:1-100 lines handle Chat Completions API
-    + Responses API + reasoning + thought streaming in ONE function.
-    """
-
     def __init__(self, provider_info: ProviderInfo):
         self.info = provider_info
 
@@ -172,18 +167,13 @@ class OpenAICompatAdapter:
         model: str,
         **kwargs,
     ) -> AsyncGenerator[ResponseWithThought, None]:
-        # TODO #2 (DONE): OpenAI AsyncClient + stream + yield chunks.
-        # Reference: khoj/processor/conversation/openai/utils.py:287-437
-        # (chat_completion_with_backoff async generator, ~150 lines condensed to ~10)
-        from openai import AsyncOpenAI  # local import: openai is a hard dep at call site
+        from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=self.info.api_key, base_url=self.info.base_url)
         stream = await client.chat.completions.create(model=model, messages=messages, stream=True, **kwargs)
         async for chunk in stream:
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
-            # Reasoning content field: DeepSeek / vLLM use `reasoning_content`,
-            # OpenAI gpt-oss uses `reasoning`. Khoj pattern: route both → thought.
             text = getattr(delta, "content", None) or ""
             thought = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None) or ""
             if text or thought:
@@ -191,15 +181,6 @@ class OpenAICompatAdapter:
 
 
 class AnthropicAdapter:
-    """Anthropic Claude direct adapter (uses anthropic SDK, not OpenAI-compat).
-
-    Khoj's anthropic/utils.py:184-277 does this with extra features:
-    - extended thinking (line 102-109)
-    - prompt caching via cache_control: ephemeral (line 295, 382)
-    - tool_choice: auto + cache tool defs (line 86-87)
-    - JSON prefill trick (line 96)
-    """
-
     def __init__(self, provider_info: ProviderInfo):
         self.info = provider_info
 
@@ -209,10 +190,8 @@ class AnthropicAdapter:
         model: str,
         **kwargs,
     ) -> AsyncGenerator[ResponseWithThought, None]:
-        from anthropic import AsyncAnthropic  # local import: optional dep
+        from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=self.info.api_key, base_url=self.info.base_url)
-        # Anthropic API requires system prompt separate from messages.
-        # Extract system message if present (khoj pattern: anthropic/utils.py:280-298)
         system_prompt = ""
         chat_messages = []
         for msg in messages:
@@ -221,14 +200,11 @@ class AnthropicAdapter:
             else:
                 chat_messages.append(msg)
         async with client.messages.stream(
-            model=model,
-            messages=chat_messages,
+            model=model, messages=chat_messages,
             system=system_prompt or None,
-            max_tokens=kwargs.pop("max_tokens", 8000),
-            **kwargs,
+            max_tokens=kwargs.pop("max_tokens", 8000), **kwargs,
         ) as stream:
             async for event in stream:
-                # Khoj pattern: anthropic/utils.py:244-253 — route text_delta/thinking_delta
                 if event.type == "content_block_delta":
                     if event.delta.type == "text_delta":
                         yield ResponseWithThought(text=event.delta.text)
@@ -237,13 +213,6 @@ class AnthropicAdapter:
 
 
 class GoogleAdapter:
-    """Google Gemini direct adapter (uses google-genai SDK).
-
-    Khoj's google/utils.py is similar in structure. The genai SDK has its own
-    streaming API that differs from OpenAI: each chunk has .text or .parts,
-    not a delta.content.
-    """
-
     def __init__(self, provider_info: ProviderInfo):
         self.info = provider_info
 
@@ -253,28 +222,21 @@ class GoogleAdapter:
         model: str,
         **kwargs,
     ) -> AsyncGenerator[ResponseWithThought, None]:
-        from google import genai  # local import: optional dep
+        from google import genai
         client = genai.Client(api_key=self.info.api_key)
-        # Convert messages to genai format (simplified — khoj handles more cases)
         contents = [m["content"] for m in messages if m.get("role") == "user"]
         async for chunk in client.aio.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            **kwargs,
+            model=model, contents=contents, **kwargs,
         ):
-            # genai SDK: chunk.text is the text delta
             text = getattr(chunk, "text", None)
             if text:
                 yield ResponseWithThought(text=text)
 
 
-# ---------- Caller: pick adapter by provider ----------
+# ---------- Routing dict ----------
 
-# TODO #3 (DONE): routing dict — map canonical provider → adapter class.
-# OpenAI-compat covers ~8 providers via base_url swap; Anthropic + Google need
-# their own SDKs because their protocol differs from OpenAI's.
 _ADAPTERS = {
-    # OpenAI-compat (covers via base_url swap) — 13 providers
+    # OpenAI-compat (13 providers via base_url swap)
     "openai": OpenAICompatAdapter,
     "groq": OpenAICompatAdapter,
     "cerebras": OpenAICompatAdapter,
@@ -287,54 +249,147 @@ _ADAPTERS = {
     "mistral": OpenAICompatAdapter,
     "together": OpenAICompatAdapter,
     "fireworks": OpenAICompatAdapter,
-    # Native SDK (different protocol from OpenAI)
+    "cohere": OpenAICompatAdapter,
+    # Native SDK
     "anthropic": AnthropicAdapter,
     "google": GoogleAdapter,
-    # Cohere: their /v1/chat is OpenAI-compat-ish but we'll skip — register as compat
-    # for now; production should use their native SDK for best feature parity.
-    "cohere": OpenAICompatAdapter,
-    # TODO: add reka, jina, hyperbolic
 }
 
+
+# ---------- Caller ----------
 
 async def chat(
     messages: list[dict],
     provider_info: ProviderInfo,
     **kwargs,
 ) -> AsyncGenerator[ResponseWithThought, None]:
-    """Public entry point. Picks the right adapter based on detect_provider()."""
+    """Public entry point. Picks the right adapter, merges provider defaults."""
     provider = detect_provider(provider_info)
     adapter_cls = _ADAPTERS.get(provider)
     if adapter_cls is None:
         raise NotImplementedError(
             f"Provider {provider} not yet supported. "
-            f"Add an adapter class to _ADAPTERS in universal_adapter.py. "
+            f"Add an adapter class to _ADAPTERS. "
             f"Known providers: {sorted(_ADAPTERS.keys())}"
         )
+    # Cycle 8: merge provider defaults (caller wins)
+    merged_kwargs = merge_provider_defaults(provider, kwargs)
     adapter = adapter_cls(provider_info)
-    async for chunk in adapter.stream(messages, provider_info.model_name, **kwargs):
+    async for chunk in adapter.stream(messages, provider_info.model_name, **merged_kwargs):
         yield chunk
+
+
+# ---------- truncate_messages (Cycle 8: E) ----------
+
+# Khoj pattern: conversation/utils.py:867-946
+# Truncates oldest messages until under max_prompt_size, preserves current question.
+# We use tiktoken (already in khoj's deps) for token counting.
+# Reference: https://github.com/openai/tiktoken
+
+@dataclass
+class TruncationConfig:
+    """Per-model token limits. Khoj hard-codes 36 models; we provide a sample + caller can extend."""
+    model_name: str
+    max_prompt_size: int  # tokens
+    tokenizer_name: Optional[str] = None  # default: cl100k_base
+
+
+# Sample limits (mirrors khoj/model_to_prompt_size)
+_DEFAULT_MODEL_LIMITS: dict[str, int] = {
+    "gpt-4o": 60000,
+    "gpt-4o-mini": 60000,
+    "gpt-4.1": 60000,
+    "gpt-4.1-mini": 120000,
+    "o1": 30000,
+    "o3": 60000,
+    "gemini-2.5-flash": 120000,
+    "gemini-2.5-pro": 60000,
+    "claude-sonnet-4-0": 60000,
+    "claude-opus-4-0": 60000,
+}
+
+
+def get_max_prompt_size(model_name: str) -> int:
+    """Return max prompt size for a model. Falls back to 10000 (khoj default)."""
+    return _DEFAULT_MODEL_LIMITS.get(model_name, 10000)
+
+
+def _count_tokens(text: str, encoder) -> int:
+    """Count tokens in a string. Khoj uses tiktoken's cl100k_base."""
+    if not text:
+        return 0
+    return len(encoder.encode(text))
+
+
+def truncate_messages(
+    messages: list[dict],
+    max_prompt_size: int,
+    encoder=None,
+) -> list[dict]:
+    """Drop oldest messages until under max_prompt_size. Preserves the last message
+    (the current user question — critical for khoj's truncate semantics).
+
+    Args:
+        messages: list of {role, content} dicts (OpenAI chat format)
+        max_prompt_size: token limit
+        encoder: tiktoken Encoding (lazy import to avoid hard dep)
+
+    Returns: truncated messages list
+    """
+    if encoder is None:
+        try:
+            import tiktoken
+            encoder = tiktoken.get_encoding("cl100k_base")
+        except ImportError:
+            # Fallback: estimate 4 chars per token (rough heuristic)
+            return _truncate_by_chars(messages, max_prompt_size * 4)
+
+    def total_tokens() -> int:
+        return sum(_count_tokens(m.get("content", ""), encoder) for m in messages)
+
+    # Khoj pattern: drop oldest first while preserving the last message
+    # Reference: conversation/utils.py:891-907
+    msgs = list(messages)  # don't mutate input
+    while len(msgs) > 1 and total_tokens() > max_prompt_size:
+        msgs.pop(0)  # drop oldest
+
+    # If single message still over limit, truncate content
+    if msgs and total_tokens() > max_prompt_size:
+        last = msgs[-1]
+        content = last.get("content", "")
+        tokens = encoder.encode(content)
+        # Reserve space for the question's last ~100 tokens (khoj pattern: line 925)
+        keep_tokens = tokens[-100:] if len(tokens) > 100 else []
+        truncated = encoder.decode(tokens[: max(0, max_prompt_size - len(keep_tokens))])
+        if keep_tokens:
+            truncated += encoder.decode(keep_tokens)
+        msgs = [{**last, "content": truncated}]
+
+    return msgs
+
+
+def _truncate_by_chars(messages: list[dict], max_chars: int) -> list[dict]:
+    """Fallback truncation when tiktoken unavailable. Rough char-based heuristic."""
+    msgs = list(messages)
+    total = sum(len(m.get("content", "")) for m in msgs)
+    while len(msgs) > 1 and total > max_chars:
+        msgs.pop(0)
+        total = sum(len(m.get("content", "")) for m in msgs)
+    return msgs
 
 
 # ---------- Example usage ----------
 
 async def example():
     """How you'd call this from builderpulse:
-
     ```python
     async for chunk in chat(
         messages=[{"role": "user", "content": "Hello"}],
-        provider_info=ProviderInfo(
-            name="auto",
-            base_url=None,  # None = official OpenAI
-            api_key="sk-...",
-            model_name="gpt-4o-mini",
-        ),
+        provider_info=ProviderInfo(name="auto", base_url=None, api_key="sk-...",
+                                  model_name="gpt-4o-mini"),
     ):
-        if chunk.text:
-            print(chunk.text, end="", flush=True)
-        if chunk.thought:
-            print(f"[think: {chunk.thought}]", end="", flush=True)
+        if chunk.text: print(chunk.text, end="", flush=True)
+        if chunk.thought: print(f"[think: {chunk.thought}]", end="", flush=True)
     ```
     """
     pass
@@ -342,13 +397,8 @@ async def example():
 
 # ---------- What khoj does that you DON'T need to copy ----------
 
-# 1. tenacity @retry decorators everywhere (lines 83-94, 275-286, 439-450, 558-569)
-#    → add later if you need it; skip for v1
-# 2. cache_control: ephemeral for prompt caching (anthropic/utils.py:295, 382)
-#    → Anthropic-only optimization, add when you actually pay per token
-# 3. clean_response_schema for strict JSON output (openai/utils.py:1290-1314)
-#    → needed only if you use tool calling
-# 4. truncate_messages token-aware (conversation/utils.py:867-946)
-#    → important but separate concern; add a tokenizer dep later
-# 5. model_to_prompt_size hard-coded dict (conversation/utils.py:61-97)
-#    → copy the 36-model dict when you ship; update quarterly
+# 1. tenacity @retry decorators — add later if you need it
+# 2. cache_control: ephemeral prompt caching — Anthropic-specific optimization
+# 3. clean_response_schema for strict JSON — only if you use tool calling
+# 4. model_to_prompt_size hard-coded 36-model dict — copy when shipping, update quarterly
+# 5. commit_conversation_trace (git-as-DB) — only if you want session replay
