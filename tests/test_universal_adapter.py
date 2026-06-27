@@ -10,27 +10,44 @@ import sys
 from pathlib import Path
 
 # Allow running from either /tmp (standalone) or builderpulse/tests/ (installed).
-# Strategy: try the local /tmp path first (where the adapter is alongside),
-# then fall back to the builderpulse src layout.
+# Strategy: detect which mode and import accordingly.
 _THIS_DIR = Path(__file__).parent.resolve()
-for candidate in [
-    _THIS_DIR,                                    # /tmp (standalone mode)
-    _THIS_DIR.parent / "src",                      # builderpulse/src (installed mode)
-    _THIS_DIR.parent,                              # /tmp if tests/ nested
-]:
-    if (candidate / "universal_llm_adapter.py").exists() or (candidate / "builderpulse").exists():
-        sys.path.insert(0, str(candidate))
-        break
+if (_THIS_DIR / "universal_llm_adapter.py").exists():
+    # Standalone mode: C:\tmp — adapter alongside test
+    sys.path.insert(0, str(_THIS_DIR))
+    from universal_llm_adapter import (  # type: ignore[no-redef]
+        ProviderInfo,
+        ResponseWithThought,
+        chat,
+        detect_provider,
+        merge_provider_defaults,
+        truncate_messages,
+        get_max_prompt_size,
+    )
+elif (_THIS_DIR.parent / "src" / "builderpulse" / "llm" / "universal_adapter.py").exists():
+    # Installed mode: builderpulse project
+    sys.path.insert(0, str(_THIS_DIR.parent / "src"))
+    from builderpulse.llm.universal_adapter import (  # type: ignore[no-redef]
+        ProviderInfo,
+        ResponseWithThought,
+        chat,
+        detect_provider,
+        merge_provider_defaults,
+        truncate_messages,
+        get_max_prompt_size,
+    )
+else:
+    raise ImportError(
+        f"Cannot locate universal_adapter.py. CWD={Path.cwd()}, "
+        f"__file__={__file__}, _THIS_DIR={_THIS_DIR}"
+    )
 
-from universal_llm_adapter import (  # noqa: E402
-    ProviderInfo,
-    ResponseWithThought,
-    chat,
-    detect_provider,
-    merge_provider_defaults,
-    truncate_messages,
-    get_max_prompt_size,
-)
+
+def _mod():
+    """Return the universal_adapter module regardless of install mode."""
+    if "universal_llm_adapter" in sys.modules:
+        return sys.modules["universal_lm_adapter"]  # type: ignore[no-redef]
+    return sys.modules["builderpulse.llm.universal_adapter"]  # type: ignore[no-redef]
 
 
 # ---------- detect_provider: 14 cases ----------
@@ -132,32 +149,30 @@ def test_detect_provider_parametrized(label, base_url, model, expected):
 
 def test_adapters_routing_dict_known_providers():
     """Structural test: _ADAPTERS covers all known providers with correct adapter classes."""
-    from universal_llm_adapter import (
-        _ADAPTERS, OpenAICompatAdapter, AnthropicAdapter, GoogleAdapter,
-    )
+    m = _mod()
     # Native SDK routes
-    assert _ADAPTERS["anthropic"] is AnthropicAdapter
-    assert _ADAPTERS["google"] is GoogleAdapter
+    assert m._ADAPTERS["anthropic"] is m.AnthropicAdapter
+    assert m._ADAPTERS["google"] is m.GoogleAdapter
     # OpenAI-compat routes (13 providers via base_url swap)
     for compat_provider in (
         "openai", "groq", "cerebras", "deepseek", "deepinfra", "qwen",
         "local", "grok", "azure", "mistral", "together", "fireworks", "cohere",
     ):
-        assert _ADAPTERS[compat_provider] is OpenAICompatAdapter, (
+        assert m._ADAPTERS[compat_provider] is m.OpenAICompatAdapter, (
             f"{compat_provider} should route to OpenAICompatAdapter"
         )
 
 
 def test_adapters_count():
     """_ADAPTERS should have at least 15 entries (13 openai-compat + 2 native)."""
-    from universal_llm_adapter import _ADAPTERS
-    assert len(_ADAPTERS) >= 15, f"_ADAPTERS has {len(_ADAPTERS)}, expected ≥15"
+    m = _mod()
+    assert len(m._ADAPTERS) >= 15, f"_ADAPTERS has {len(m._ADAPTERS)}, expected ≥15"
 
 
 def test_chat_unknown_provider_raises():
     """chat() should raise NotImplementedError with helpful list for unknown provider."""
     import asyncio
-    from universal_llm_adapter import _ADAPTERS
+    m = _mod()
 
     async def run():
         gen = chat(
@@ -175,7 +190,7 @@ def test_chat_unknown_provider_raises():
     assert err is not None, "expected NotImplementedError for unknown provider"
     assert "not yet supported" in err
     # Should mention at least one known provider in error message
-    assert any(p in err for p in _ADAPTERS.keys()), f"error should list known providers: {err}"
+    assert any(p in err for p in m._ADAPTERS.keys()), f"error should list known providers: {err}"
 
 
 # ---------- Mock test for AnthropicAdapter (cycle 6) ----------
@@ -221,9 +236,9 @@ def test_provider_defaults_merge_caller_wins():
 
 def test_provider_defaults_all_known_providers():
     """All 15 _ADAPTERS providers should have defaults registered (no KeyError)."""
-    from universal_llm_adapter import _ADAPTERS, _PROVIDER_DEFAULT_PARAMS
-    for provider in _ADAPTERS:
-        assert provider in _PROVIDER_DEFAULT_PARAMS, (
+    m = _mod()
+    for provider in m._ADAPTERS:
+        assert provider in m._PROVIDER_DEFAULT_PARAMS, (
             f"missing defaults for {provider}"
         )
 
