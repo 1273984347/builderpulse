@@ -50,6 +50,39 @@ class StreamEventType(str, Enum):
     ERROR = "error"
 
 
+@dataclass
+class EmbeddingResponse:
+    """Result of an embed() call, normalized across providers."""
+    embeddings: list[list[float]]
+    model: str
+    usage: dict = field(default_factory=dict)  # tokens, cost, etc.
+
+
+# ---------- Provider embedding support ----------
+# Not all providers support embeddings. This table maps canonical provider →
+# (embed_endpoint_family, default_embed_model).
+# Khoj uses pgvector + OpenAI text-embedding-3-small for embeddings; we mirror
+# that pattern but allow per-provider override.
+_EMBED_SUPPORT = {
+    "openai": ("openai", "text-embedding-3-small"),
+    "azure": ("openai", "text-embedding-3-small"),
+    "deepinfra": ("openai", "BAAI/bge-large-en-v1.5"),
+    "together": ("openai", "togethercomputer/m2-bert-80M-8k-retrieval"),
+    "fireworks": ("openai", "accounts/fireworks/models/nomic-embed-text-v1.5"),
+    "local": ("openai", "text-embedding-3-small"),
+    "groq": (None, None),
+    "cerebras": (None, None),
+    "grok": (None, None),
+    "qwen": (None, None),
+    "mistral": ("mistral", "mistral-embed"),
+    "cohere": ("cohere", "embed-english-v3.0"),
+    "deepseek": (None, None),
+    "anthropic": (None, None),
+    "google": (None, None),
+    "unknown": (None, None),
+}
+
+
 # ---------- Provider detection ----------
 
 @dataclass
@@ -380,6 +413,78 @@ _ADAPTERS = {
 
 
 # ---------- Caller ----------
+
+async def embed(
+    texts: list[str] | str,
+    provider_info: ProviderInfo,
+    model: Optional[str] = None,
+) -> EmbeddingResponse:
+    """Generate embeddings for text(s) using any provider that supports it.
+
+    Symmetric to chat() — single interface for 15 providers, but only those
+    that actually offer an embeddings API (OpenAI, Azure, Mistral, Cohere,
+    some local). Returns EmbeddingResponse with .embeddings (list of float lists).
+
+    Usage:
+        result = await embed(["hello world", "foo bar"], provider_info)
+        # result.embeddings = [[0.1, 0.2, ...], [0.3, 0.4, ...]]
+        # result.model = "text-embedding-3-small"
+        # result.usage = {"prompt_tokens": 4, "total_tokens": 4}
+
+    Raises:
+        NotImplementedError: if provider doesn't support embeddings
+    """
+    if isinstance(texts, str):
+        texts = [texts]
+
+    provider = detect_provider(provider_info)
+    family, default_model = _EMBED_SUPPORT.get(provider, (None, None))
+
+    if family is None:
+        raise NotImplementedError(
+            f"Provider {provider} does not support embeddings via universal_adapter. "
+            f"Supported: {[p for p, (f, _) in _EMBED_SUPPORT.items() if f is not None]}. "
+            f"Use provider-specific SDK directly."
+        )
+
+    use_model = model or default_model
+
+    if family == "openai":
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(
+            api_key=provider_info.api_key,
+            base_url=provider_info.base_url,
+        )
+        resp = await client.embeddings.create(model=use_model, input=texts)
+        usage = {}
+        if hasattr(resp, "usage") and resp.usage:
+            usage = {"prompt_tokens": resp.usage.prompt_tokens, "total_tokens": resp.usage.total_tokens}
+        return EmbeddingResponse(
+            embeddings=[d.embedding for d in resp.data],
+            model=resp.model,
+            usage=usage,
+        )
+
+    if family == "mistral":
+        from mistralai import Mistral
+        client = Mistral(api_key=provider_info.api_key)
+        resp = await client.embeddings_async(model=use_model, inputs=texts)
+        return EmbeddingResponse(
+            embeddings=[d.embedding for d in resp.data],
+            model=resp.model,
+        )
+
+    if family == "cohere":
+        import cohere
+        client = cohere.AsyncClient(api_key=provider_info.api_key)
+        resp = await client.embed(texts=texts, model=use_model)
+        return EmbeddingResponse(
+            embeddings=resp.embeddings,
+            model=use_model,
+        )
+
+    raise NotImplementedError(f"Embedding family {family} not yet wired")
+
 
 async def chat(
     messages: list[dict],
