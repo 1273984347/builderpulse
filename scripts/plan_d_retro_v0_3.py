@@ -127,18 +127,31 @@ class PgVectorMemoryStore:
             conn.commit()
 
     async def _embed(self, text: str) -> List[float]:
-        """Generate embedding via OpenAI text-embedding-3-small.
+        """Generate embedding via universal_adapter.embed() (15 providers via base_url swap).
 
-        Uses builderpulse.llm.universal_adapter for the OpenAI client.
-        Returns empty list if generation fails (graceful degradation).
+        Defaults to Ollama local (LLM_BASE_URL=http://localhost:11434/v1).
+        Falls back to OpenAI text-embedding-3-small when LLM_BASE_URL unset.
+        Returns empty list on failure (graceful degradation per khoj pattern).
         """
         try:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=self.openai_api_key)
-            resp = await client.embeddings.create(model=self.EMBEDDING_MODEL, input=text)
-            return resp.data[0].embedding
+            from builderpulse.llm.universal_adapter import embed, ProviderInfo
+            api_key = (
+                self.openai_api_key
+                or os.environ.get('OPENAI_API_KEY', '')
+                or os.environ.get('LLM_API_KEY', '')
+                or 'ollama-local'
+            )
+            base_url = os.environ.get('LLM_BASE_URL') or os.environ.get('OPENAI_BASE_URL')
+            info = ProviderInfo(
+                name='embed',
+                base_url=base_url,
+                api_key=api_key,
+                model_name=self.EMBEDDING_MODEL,
+            )
+            resp = await embed(text, info)
+            return resp.embeddings[0] if resp.embeddings else []
         except Exception as e:
-            print(f"[warn] embedding generation failed: {e}")
+            print(f'[warn] embed() failed: {e}')
             return []
 
     def add(self, raw: str, source: str = "retro", embedding: Optional[List[float]] = None) -> MemoryEntry:
