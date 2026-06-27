@@ -1,0 +1,62 @@
+name: test_universal_adapter
+
+on:
+  push:
+    paths:
+      - 'src/builderpulse/llm/**'
+      - 'tests/test_universal_adapter.py'
+      - '.github/workflows/test_universal_adapter.yml'
+  pull_request:
+    paths:
+      - 'src/builderpulse/llm/**'
+      - 'tests/test_universal_adapter.py'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies (minimal for adapter tests)
+        run: |
+          python -m pip install --upgrade pip
+          # tiktoken is optional; the test gracefully skips if missing.
+          # We don't install anthropic/google-genai/openai here because
+          # those SDKs are optional — only OpenAICompatAdapter is exercised.
+          pip install pytest
+
+      - name: Run universal_adapter tests
+        run: |
+          cd ${{ github.workspace }}
+          PYTHONPATH=src python -m pytest tests/test_universal_adapter.py -v
+
+      - name: Verify adapter imports without errors
+        run: |
+          PYTHONPATH=src python -c "
+          from builderpulse.llm.universal_adapter import (
+              ResponseWithThought, ProviderInfo, detect_provider,
+              merge_provider_defaults, truncate_messages, get_max_prompt_size,
+              _ADAPTERS, _PROVIDER_DEFAULT_PARAMS,
+          )
+          print(f'OK: {_ADAPTERS = }')
+          print(f'OK: providers with defaults = {len(_PROVIDER_DEFAULT_PARAMS)}')
+          "
+
+      - name: Smoke test plan_d_retro_v0_1 (stub mode, no API key)
+        run: |
+          python scripts/plan_d_retro_v0_1.py save "ci-smoke-$(date +%s)"
+          python scripts/plan_d_retro_v0_1.py pull
+
+      - name: Smoke test plan_d_retro_v0_2 status (stub mode)
+        run: |
+          python scripts/plan_d_retro_v0_2.py status || true

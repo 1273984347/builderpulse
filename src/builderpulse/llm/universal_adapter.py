@@ -199,9 +199,30 @@ class AnthropicAdapter:
                 system_prompt += msg.get("content", "") + "\n"
             else:
                 chat_messages.append(msg)
+        # Cycle 9 C: prompt caching via cache_control: ephemeral
+        # Khoj pattern: anthropic/utils.py:295 (system) + 382 (last message)
+        # Reference: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+        if len(chat_messages) > 2 and system_prompt:
+            # Cache the system prompt (always re-read, rare to change)
+            system_prompt_block = [
+                {"type": "text", "text": system_prompt.strip(), "cache_control": {"type": "ephemeral"}}
+            ]
+        else:
+            system_prompt_block = system_prompt or None
+        # Cache last message (multi-turn conversations benefit most)
+        if chat_messages and len(chat_messages) > 2:
+            last_msg = chat_messages[-1]
+            content = last_msg.get("content", "")
+            if isinstance(content, str):
+                chat_messages[-1] = {
+                    **last_msg,
+                    "content": [
+                        {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}
+                    ],
+                }
         async with client.messages.stream(
             model=model, messages=chat_messages,
-            system=system_prompt or None,
+            system=system_prompt_block,
             max_tokens=kwargs.pop("max_tokens", 8000), **kwargs,
         ) as stream:
             async for event in stream:

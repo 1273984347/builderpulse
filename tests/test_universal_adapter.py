@@ -150,13 +150,15 @@ def test_detect_provider_parametrized(label, base_url, model, expected):
 def test_adapters_routing_dict_known_providers():
     """Structural test: _ADAPTERS covers all known providers with correct adapter classes."""
     m = _mod()
-    # Native SDK routes
+    # Native SDK routes (cycle 10: +MistralAdapter, +CohereAdapter)
     assert m._ADAPTERS["anthropic"] is m.AnthropicAdapter
     assert m._ADAPTERS["google"] is m.GoogleAdapter
-    # OpenAI-compat routes (13 providers via base_url swap)
+    assert m._ADAPTERS["mistral"] is m.MistralAdapter  # cycle 10: native SDK
+    assert m._ADAPTERS["cohere"] is m.CohereAdapter    # cycle 10: native SDK
+    # OpenAI-compat routes (11 providers via base_url swap after cycle 10)
     for compat_provider in (
         "openai", "groq", "cerebras", "deepseek", "deepinfra", "qwen",
-        "local", "grok", "azure", "mistral", "together", "fireworks", "cohere",
+        "local", "grok", "azure", "together", "fireworks",
     ):
         assert m._ADAPTERS[compat_provider] is m.OpenAICompatAdapter, (
             f"{compat_provider} should route to OpenAICompatAdapter"
@@ -164,9 +166,20 @@ def test_adapters_routing_dict_known_providers():
 
 
 def test_adapters_count():
-    """_ADAPTERS should have at least 15 entries (13 openai-compat + 2 native)."""
+    """_ADAPTERS should have at least 15 entries (11 openai-compat + 4 native)."""
     m = _mod()
     assert len(m._ADAPTERS) >= 15, f"_ADAPTERS has {len(m._ADAPTERS)}, expected ≥15"
+
+
+def test_cohere_and_mistral_adapters_exist():
+    """Cycle 10: native SDK adapter classes are importable."""
+    m = _mod()
+    assert hasattr(m, "CohereAdapter"), "CohereAdapter class missing"
+    assert hasattr(m, "MistralAdapter"), "MistralAdapter class missing"
+    # Verify they have the expected interface
+    for cls in (m.CohereAdapter, m.MistralAdapter):
+        assert hasattr(cls, "stream"), f"{cls.__name__}.stream missing"
+        assert hasattr(cls, "__init__"), f"{cls.__name__}.__init__ missing"
 
 
 def test_chat_unknown_provider_raises():
