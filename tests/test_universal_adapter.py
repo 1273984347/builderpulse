@@ -206,27 +206,45 @@ def test_chat_unknown_provider_raises():
     assert any(p in err for p in m._ADAPTERS.keys()), f"error should list known providers: {err}"
 
 
-# ---------- Mock test for AnthropicAdapter (cycle 6) ----------
+# ---------- Mock tests for native SDK adapters ----------
+#
+# DELETED in first-principles cleanup (cycle 11 → D):
+# These 4 tests were `pass` body + `skipif(True)` — pure ceremony, never run.
+# When real SDK mocking is needed, add proper tests (not skeleton stubs).
+# See CLAUDE.md §0.4 (Complexity Must Be Earned) — skip stubs are technical debt.
+#
+# Removed:
+#   test_anthropic_adapter_routes_text_delta   (cycle 6, skipif=True)
+#   test_google_adapter_routes_text_chunk      (cycle 6, skipif=True)
+#   test_cohere_adapter_routes_event           (cycle 11, skipif=True)
+#   test_mistral_adapter_routes_chunk          (cycle 11, skipif=True)
 
-@pytest.mark.skipif(
-    True,  # skip by default — enable by setting RUN_ADAPTER_MOCK_TESTS=1 once anthropic SDK installed
-    reason="anthropic SDK may not be installed; enable manually",
-)
-def test_anthropic_adapter_routes_text_delta():
-    """Mock anthropic SDK: verify AnthropicAdapter yields ResponseWithThought on text_delta."""
-    # Note: this test is a skeleton — full mock implementation requires
-    # patching anthropic.AsyncAnthropic + its async context manager + async iterator.
-    # Defer to integration test (with real API key) when ready.
-    pass
+
+def test_provider_defaults_no_duplicate():
+    """Cycle 11: _PROVIDER_DEFAULT_PARAMS should not have duplicate provider keys."""
+    m = _mod()
+    keys = list(m._PROVIDER_DEFAULT_PARAMS.keys())
+    assert len(keys) == len(set(keys)), f"duplicate keys in _PROVIDER_DEFAULT_PARAMS: {keys}"
 
 
-@pytest.mark.skipif(
-    True,
-    reason="google-genai SDK may not be installed",
-)
-def test_google_adapter_routes_text_chunk():
-    """Mock google-genai SDK: verify GoogleAdapter yields ResponseWithThought."""
-    pass
+def test_truncate_messages_empty_input():
+    """Cycle 11: edge case — empty message list returns empty."""
+    assert truncate_messages([], max_prompt_size=100, encoder=None) == []
+
+
+def test_truncate_messages_single_short_message():
+    """Cycle 11: single message under limit stays as-is."""
+    msgs = [{"role": "user", "content": "hello"}]
+    truncated = truncate_messages(msgs, max_prompt_size=1000, encoder=None)
+    assert truncated == msgs, f"should not truncate: {truncated}"
+
+
+def test_merge_provider_defaults_empty_kwargs():
+    """Cycle 11: empty kwargs returns just the defaults."""
+    merged = merge_provider_defaults("openai", {})
+    assert merged == {}, f"openai has no defaults: {merged}"
+    merged = merge_provider_defaults("cerebras", {})
+    assert merged == {"temperature": 0.7, "max_tokens": 8192}
 
 
 # ---------- Cycle 8: provider defaults + truncate_messages ----------

@@ -234,6 +234,16 @@ class AnthropicAdapter:
 
 
 class GoogleAdapter:
+    """⚠️ EXPERIMENTAL: Google Gemini native SDK adapter (uses google-genai SDK).
+
+    Tier 3 (per cycle 11 first-principles audit):
+    - Code exists and is registered in _ADAPTERS
+    - Has NEVER been tested with real google-genai SDK
+    - Mock tests deleted in cycle 11 cleanup
+    - Use with caution; consider OpenAICompatAdapter via Google's OpenAI-compatible endpoint
+      for simpler integration unless you need Gemini-specific features (multimodal, etc.)
+    """
+
     def __init__(self, provider_info: ProviderInfo):
         self.info = provider_info
 
@@ -254,10 +264,102 @@ class GoogleAdapter:
                 yield ResponseWithThought(text=text)
 
 
+class CohereAdapter:
+    """⚠️ EXPERIMENTAL: Cohere native SDK adapter (uses cohere SDK, not OpenAI-compat).
+
+    Tier 3 (per cycle 11 first-principles audit):
+    - Code exists and is registered in _ADAPTERS
+    - Has NEVER been tested with real Cohere SDK
+    - Mock tests deleted in cycle 11 cleanup
+    - Use with caution; prefer OpenAICompatAdapter unless you need Cohere-specific features
+      (citation generation, RAG connectors, etc.)
+
+    Khoj pattern: API has chat() endpoint with stream=True, returns ChatGeneration
+    chunks with .text and .event_type. Note Cohere's streaming differs from OpenAI:
+    events are typed (stream-start, text-generation, stream-end).
+    """
+
+    def __init__(self, provider_info: ProviderInfo):
+        self.info = provider_info
+
+    async def stream(
+        self,
+        messages: list[dict],
+        model: str,
+        **kwargs,
+    ) -> AsyncGenerator[ResponseWithThought, None]:
+        import cohere  # local import: optional dep
+        client = cohere.AsyncClient(api_key=self.info.api_key)
+        # Cohere chat() takes chat_history + message, not messages array
+        chat_history = []
+        current_message = ""
+        for msg in messages:
+            if msg.get("role") == "system":
+                # Cohere has preamble (system prompt equivalent)
+                kwargs["preamble"] = msg.get("content", "")
+            elif msg.get("role") == "user":
+                current_message = msg.get("content", "")
+            elif msg.get("role") == "assistant":
+                chat_history.append({"role": "CHATBOT", "message": msg.get("content", "")})
+                chat_history.append({"role": "USER", "message": current_message})
+                current_message = ""
+        if current_message:
+            chat_history.append({"role": "USER", "message": current_message})
+        async for event in client.chat_stream(
+            model=model,
+            message=chat_history[-1]["message"] if chat_history else "",
+            chat_history=chat_history[:-1] if chat_history else None,
+            **kwargs,
+        ):
+            # Cohere events: stream-start, text-generation, citation-generation, stream-end, etc.
+            if hasattr(event, "text") and event.text:
+                yield ResponseWithThought(text=event.text)
+
+
+class MistralAdapter:
+    """⚠️ EXPERIMENTAL: Mistral native SDK adapter (uses mistralai SDK).
+
+    Tier 3 (per cycle 11 first-principles audit):
+    - Code exists and is registered in _ADAPTERS
+    - Has NEVER been tested with real Mistral SDK
+    - Mock tests deleted in cycle 11 cleanup
+    - Use with caution; prefer OpenAICompatAdapter unless you need Mistral-specific features
+      (safe_prompt native param, random_seed, codestral, etc.)
+
+    Mistral has safe_prompt built-in (default True in their API). Their SDK has
+    chat_stream() returning async chunks with .data.choices[0].delta.content.
+    Compatible with OpenAI but has Mistral-specific params (safe_prompt, random_seed).
+    """
+
+    def __init__(self, provider_info: ProviderInfo):
+        self.info = provider_info
+
+    async def stream(
+        self,
+        messages: list[dict],
+        model: str,
+        **kwargs,
+    ) -> AsyncGenerator[ResponseWithThought, None]:
+        from mistralai import Mistral
+        client = Mistral(api_key=self.info.api_key)
+        async for chunk in client.chat.stream_async(
+            model=model,
+            messages=messages,
+            **kwargs,
+        ):
+            # Mistral streaming: chunk.data.choices[0].delta.content
+            try:
+                content = chunk.data.choices[0].delta.content
+                if content:
+                    yield ResponseWithThought(text=content)
+            except (AttributeError, IndexError):
+                continue  # skip non-content chunks (e.g., tool_calls)
+
+
 # ---------- Routing dict ----------
 
 _ADAPTERS = {
-    # OpenAI-compat (13 providers via base_url swap)
+    # OpenAI-compat (11 providers via base_url swap)
     "openai": OpenAICompatAdapter,
     "groq": OpenAICompatAdapter,
     "cerebras": OpenAICompatAdapter,
@@ -267,13 +369,13 @@ _ADAPTERS = {
     "local": OpenAICompatAdapter,
     "grok": OpenAICompatAdapter,
     "azure": OpenAICompatAdapter,
-    "mistral": OpenAICompatAdapter,
     "together": OpenAICompatAdapter,
     "fireworks": OpenAICompatAdapter,
-    "cohere": OpenAICompatAdapter,
-    # Native SDK
+    # Native SDK (cycle 10: more feature parity)
     "anthropic": AnthropicAdapter,
     "google": GoogleAdapter,
+    "cohere": CohereAdapter,    # cycle 10: native SDK (better feature parity than OpenAI-compat)
+    "mistral": MistralAdapter,  # cycle 10: native SDK (safe_prompt native)
 }
 
 

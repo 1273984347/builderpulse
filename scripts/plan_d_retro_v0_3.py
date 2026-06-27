@@ -1,5 +1,5 @@
 """
-Plan D — Retro automation v0.3 (pgvector MemoryStore).
+Plan D — Retro automation v0.3 (pgvector MemoryStore) — ⚠️ EXPERIMENTAL
 
 Differences from v0.2:
 - Add PgVectorMemoryStore with semantic search (cosine similarity)
@@ -8,12 +8,17 @@ Differences from v0.2:
 - Real embeddings come from the universal LLM adapter (OpenAI text-embedding-3-small)
 - Substring fallback if embedding generation fails (khoj pattern: graceful degradation)
 
+⚠️ EXPERIMENTAL (Tier 3 per cycle 11 first-principles audit):
+- Code complete but NEVER tested end-to-end (requires docker daemon + postgres setup)
+- Mock tests deleted in cycle 11 cleanup
+- Use v0.1 or v0.2 until docker postgres is available
+
 Usage:
-    # JSON mode (v0.2 default, no DATABASE_URL)
+    # JSON mode (v0.2 default, no DATABASE_URL) — USE THIS INSTEAD
     $ python scripts/plan_d_retro_v0_3.py save "text"
     $ python scripts/plan_d_retro_v0_3.py pull
 
-    # pgvector mode (with DATABASE_URL=postgresql://user:pass@host/db)
+    # pgvector mode (with DATABASE_URL=postgresql://user:pass@host/db) — EXPERIMENTAL
     $ export DATABASE_URL=postgresql://khoj:khoj@localhost:5432/khoj
     $ export OPENAI_API_KEY=sk-...   # for embedding generation
     $ python scripts/plan_d_retro_v0_3.py save "text"
