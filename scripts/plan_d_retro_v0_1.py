@@ -37,9 +37,10 @@ from typing import List, Optional
 
 VAULT_PATH = Path(os.environ.get("BUILDERPULSE_VAULT", "~/.builderpulse")).expanduser()
 MEMORY_FILE = VAULT_PATH / "memory" / "retro_memory.json"
-LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", None)  # None = official OpenAI
-DEFAULT_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+# Fallback chain: LLM_API_KEY → OPENAI_API_KEY (common naming convention)
+LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL", None)
+DEFAULT_MODEL = os.environ.get("LLM_MODEL") or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 # Khoj's UserMemory retention: 7-day pull window, top-K retrieval
 PULL_WINDOW_DAYS = 7

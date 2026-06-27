@@ -83,12 +83,103 @@ class OllamaProvider(LLMProvider):
         return r.json()["response"]
 
 
+class UniversalAdapterProvider(LLMProvider):
+    """Sync wrapper over builderpulse.llm.universal_adapter (15 providers).
+
+    Adds support for any model that the universal adapter detects via
+    detect_provider() — Groq, DeepSeek, Mistral, Cohere, Cerebras, Together,
+    Fireworks, Qwen, xAI, OpenAI, Anthropic, Google, etc.
+
+    Use prefix `u:` to explicitly select this provider:
+        get_provider("u:gpt-4o-mini")           # OpenAI via universal
+        get_provider("u:claude-sonnet-4-5")      # Anthropic via universal
+        get_provider("u:groq/llama-3.1-70b")     # Groq via universal
+
+    Sync wrapper: blocks on asyncio.run() per call. For high-throughput
+    pipelines, use the async universal_adapter.chat() directly.
+    """
+
+    def __init__(
+        self,
+        model: str = "gpt-4o-mini",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
+        self.model = model
+        self.api_key = api_key
+        self.base_url = base_url
+
+    def complete(self, prompt: str, system: str = "", temperature: float = 0.3) -> str:
+        import asyncio
+        import os
+
+        try:
+            from builderpulse.llm.universal_adapter import chat, ProviderInfo
+        except ImportError as e:
+            raise ImportError(
+                f"universal_adapter not importable: {e}. "
+                "Is builderpulse installed in editable mode? Try: pip install -e ."
+            )
+
+        # Fallback chain: explicit api_key → env var → empty
+        api_key = (
+            self.api_key
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or os.environ.get("LLM_API_KEY")
+            or ""
+        )
+
+        info = ProviderInfo(
+            name="auto",
+            base_url=self.base_url or os.environ.get("LLM_BASE_URL"),
+            api_key=api_key,
+            model_name=self.model,
+        )
+
+        async def _run():
+            chunks = []
+            async for chunk in chat(
+                messages=[
+                    {"role": "system", "content": system or "You are a helpful assistant."},
+                    {"role": "user", "content": prompt},
+                ],
+                provider_info=info,
+                temperature=temperature,
+            ):
+                if chunk.text:
+                    chunks.append(chunk.text)
+            return "".join(chunks)
+
+        return asyncio.run(_run())
+
+
 def get_provider(model: str = "auto", api_key: str | None = None) -> LLMProvider:
-    """Auto-detect LLM provider from model name."""
+    """Auto-detect LLM provider from model name.
+
+    Routing:
+    - "u:<model>"  → UniversalAdapterProvider (15 providers via base_url swap)
+    - "claude*"    → AnthropicProvider (direct SDK)
+    - "gpt*"       → OpenAIProvider (direct SDK)
+    - "ollama/*"   → OllamaProvider (local)
+    - "auto"       → UniversalAdapterProvider (if installed) → fallback to direct SDK
+    - other        → ValueError
+    """
     import os
 
+    # Universal adapter prefix: "u:gpt-4o-mini", "u:groq/llama", etc.
+    if model.startswith("u:"):
+        actual_model = model.split(":", 1)[1]
+        return UniversalAdapterProvider(model=actual_model, api_key=api_key)
+
     if model == "auto":
-        # P1 fix: auto-detect based on available API keys
+        # Prefer universal adapter if available (covers 15 providers).
+        try:
+            import builderpulse.llm.universal_adapter  # noqa: F401
+            return UniversalAdapterProvider(model="gpt-4o-mini", api_key=api_key)
+        except ImportError:
+            pass
+        # Fallback to direct SDK providers
         if os.environ.get("ANTHROPIC_API_KEY"):
             return AnthropicProvider(api_key=api_key, model="claude-sonnet-4-6")
         elif os.environ.get("OPENAI_API_KEY"):
@@ -103,7 +194,7 @@ def get_provider(model: str = "auto", api_key: str | None = None) -> LLMProvider
     elif model.startswith("ollama/"):
         return OllamaProvider(model=model.split("/", 1)[1])
     else:
-        raise ValueError(f"Unknown model: {model}. Use claude-* / gpt-* / ollama/*")
+        raise ValueError(f"Unknown model: {model}. Use claude-* / gpt-* / ollama/* / u:*")
 
 
 class Summarizer:
