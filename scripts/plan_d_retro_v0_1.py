@@ -28,10 +28,22 @@ import asyncio
 import json
 import os
 import sys
-from dataclasses import dataclass, asdict, field
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
+
+# ---------- Shared base (consolidated from this script in session 13) ----------
+from plan_d._store import (
+    PULL_WINDOW_DAYS,
+    RETRIEVAL_TOP_K,
+    MemoryEntry,
+    MemoryStore,
+    MemoryStoreBackend,
+)
+
+# ---------- Re-exports (backward compat for `from plan_d_retro_v0_1 import ...`) ----------
+__all__ = ["MemoryEntry", "MemoryStore", "MemoryStoreBackend",
+           "PULL_WINDOW_DAYS", "RETRIEVAL_TOP_K",
+           "MEMORY_FILE", "cmd_save", "cmd_pull", "cmd_reflect", "cmd_weekly"]
 
 # ---------- Config ----------
 
@@ -41,78 +53,6 @@ MEMORY_FILE = VAULT_PATH / "memory" / "retro_memory.json"
 LLM_API_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("OPENAI_BASE_URL", None)
 DEFAULT_MODEL = os.environ.get("LLM_MODEL") or os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-
-# Khoj's UserMemory retention: 7-day pull window, top-K retrieval
-PULL_WINDOW_DAYS = 7
-RETRIEVAL_TOP_K = 10
-
-
-# ---------- Data model (mirrors khoj/database/models/__init__.py:855-870) ----------
-
-@dataclass
-class MemoryEntry:
-    """Mirrors khoj's UserMemory model.
-
-    In khoj, embeddings are pgvector VectorField(dimensions=None).
-    v0.1 stores them as a list[float] in JSON. For real use, swap to pgvector.
-    """
-    id: str
-    raw: str
-    created_at: str  # ISO 8601
-    embedding: List[float] = field(default_factory=list)
-    source: str = "retro"  # retro / conversation / automation
-
-
-# ---------- In-memory store + JSON persistence ----------
-
-class MemoryStore:
-    """Trivial in-memory store with JSON file persistence.
-
-    NOT for production. Use pgvector or sqlite-vec for real workloads.
-    """
-
-    def __init__(self, path: Path = MEMORY_FILE):
-        self.path = path
-        self.entries: List[MemoryEntry] = []
-        if path.exists():
-            self.entries = [MemoryEntry(**e) for e in json.loads(path.read_text())]
-
-    def save(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps([asdict(e) for e in self.entries], indent=2))
-
-    def add(self, raw: str, source: str = "retro", embedding: Optional[List[float]] = None) -> MemoryEntry:
-        entry = MemoryEntry(
-            id=f"mem_{len(self.entries) + 1}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            raw=raw,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            embedding=embedding or [],
-            source=source,
-        )
-        self.entries.append(entry)
-        self.save()
-        return entry
-
-    def pull(self, window_days: int = PULL_WINDOW_DAYS, limit: int = RETRIEVAL_TOP_K) -> List[MemoryEntry]:
-        """Pull recent memories within window. Mirrors khoj pull_memories (adapters:2287)."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
-        recent = [
-            e for e in self.entries
-            if datetime.fromisoformat(e.created_at) >= cutoff
-        ]
-        # Sort by recency desc, khoj pattern: order_by("-created_at")[:limit]
-        recent.sort(key=lambda e: e.created_at, reverse=True)
-        return recent[:limit]
-
-    def search(self, query: str, limit: int = RETRIEVAL_TOP_K) -> List[MemoryEntry]:
-        """Stub: substring match. khoj uses pgvector cosine similarity.
-        v0.1 keeps it simple; production should use real embeddings.
-        """
-        query_lower = query.lower()
-        scored = [(sum(1 for w in query_lower.split() if w in e.raw.lower()), e) for e in self.entries]
-        scored = [(s, e) for s, e in scored if s > 0]
-        scored.sort(reverse=True)
-        return [e for _, e in scored[:limit]]
 
 
 # ---------- LLM helper (using universal_adapter) ----------
