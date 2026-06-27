@@ -26,10 +26,12 @@ class RAGChannel:
         host: str = "localhost",
         port: int = 6333,
         vector_size: int = 384,
+        llm_provider=None,  # Optional LLMProvider (from remix.summarizer); enables llm_summarize/llm_rerank
     ):
         self.collection = collection
         self.client = QdrantClient(host=host, port=port)
         self.vector_size = vector_size
+        self.llm_provider = llm_provider
         self._ensure_collection()
         # 缓存层 (集成到 RAG channel)
         try:
@@ -136,6 +138,68 @@ class RAGChannel:
             lines.append(f"{i+1}. [{r['score']:.3f}] {r['text'][:200]}...")
 
         return "\n".join(lines)
+
+    def llm_summarize(self, query: str, results: list[dict], max_items: int = 5) -> str:
+        """Use LLM to generate a coherent answer from search results.
+
+        Falls back to summarize() if no llm_provider is set.
+        Designed for UniversalAdapterProvider (any of 15 providers).
+        """
+        if not results:
+            return "No results found."
+        if not self.llm_provider:
+            return self.summarize(results, max_items)
+
+        # Build context from top results
+        context_parts = []
+        for i, r in enumerate(results[:max_items]):
+            context_parts.append(f"[{i+1}] (score={r['score']:.3f}) {r['text']}")
+        context = "\n\n".join(context_parts)
+
+        prompt = (
+            f"Question: {query}\n\n"
+            f"Context (from search results):\n{context}\n\n"
+            f"Answer based ONLY on the context above. "
+            f"If the context doesn't contain the answer, say so. "
+            f"Cite source numbers [1], [2], etc."
+        )
+        system = "You are a precise RAG assistant. Answer concisely based only on the provided context."
+
+        return self.llm_provider.complete(prompt, system=system, temperature=0.2)
+
+    def llm_rerank(self, query: str, results: list[dict], top_k: int = 5) -> list[dict]:
+        """Use LLM to rerank results by relevance to query.
+
+        Falls back to rerank_by_keywords() if no llm_provider is set.
+        Designed for UniversalAdapterProvider (any of 15 providers).
+        Returns top_k results with 'llm_relevance_score' field added.
+        """
+        if not results:
+            return []
+        if not self.llm_provider:
+            return self.rerank_by_keywords(query, results, top_k)
+
+        # Score each result individually (n=1 simple approach)
+        scored = []
+        for r in results:
+            prompt = (
+                f"Query: {query}\n\n"
+                f"Document: {r.get('text', '')}\n\n"
+                f"On a scale 0-10, how relevant is this document to the query? "
+                f"Reply with ONLY a single number, no explanation."
+            )
+            try:
+                resp = self.llm_provider.complete(prompt, temperature=0.0).strip()
+                score = float(resp.split()[0])  # first token
+                score = max(0.0, min(10.0, score))  # clamp
+            except (ValueError, IndexError):
+                score = 0.0  # fallback on parse failure
+            r["llm_relevance_score"] = score
+            scored.append(r)
+
+        # Sort and truncate
+        scored.sort(key=lambda x: x.get("llm_relevance_score", 0), reverse=True)
+        return scored[:top_k]
 
     def delete_collection(self):
         """删除 collection。"""
